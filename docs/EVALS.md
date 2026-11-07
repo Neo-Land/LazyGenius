@@ -22,6 +22,14 @@ Over 5 MIT lecture decks (see `evals/SOURCES.md`).
 Overall recall is 29 / 40 (72.5%): every mechanical error and no errors of meaning. The last two kinds are
 what the AI judge is for, and whether it catches them is **unmeasured** until a live run.
 
+### Retrieval (offline, 2026-11-07)
+30 student-style questions over the 5 MIT decks (`evals/retrieval.toml`, Claude's unreviewed draft), each
+labeled with the slides that answer it. Search runs over all 5 decks at once, as it would over a course.
+
+| Search | Recall@1 | Recall@5 | MRR |
+|---|---|---|---|
+| BM25, exact words (baseline) | 20 / 30 | 26 / 30 | 0.748 |
+
 ### Full pipeline
 Offline mode only quotes slides, so it proves the pipeline runs and nothing about quality. Its 100%
 grounding is guaranteed by construction, and its 10% coverage is not a model score. Live numbers:
@@ -49,6 +57,7 @@ grounding is guaranteed by construction, and its 10% coverage is not a model sco
 ## Reproduce
 ```bash
 python -m evals.run                         # free, downloads the decks
+python -m evals.retrieval                   # free, retrieval recall@5
 python -m evals.run --live --max-usd 1      # costs money, run by Neo
 ```
 Or run the **Eval** workflow from the repo's Actions tab, after adding the `ANTHROPIC_API_KEY` secret for

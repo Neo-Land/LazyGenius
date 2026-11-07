@@ -1,0 +1,153 @@
+# Retrieval eval: student-style questions over the MIT 6.0001 decks, each labeled with the slides that
+# answer it. Search runs over all 5 decks at once, as it would over a course. A hit is any labeled slide.
+reviewed = false  # Claude's draft. Neo sets true after checking each label, then adds his own courses' set.
+
+[[q]]
+deck = "mit6_0001_lec1"
+question = "How much is the final exam worth in the grading?"
+slides = [3]
+
+[[q]]
+deck = "mit6_0001_lec1"
+question = "Are recitations required?"
+slides = [5]
+
+[[q]]
+deck = "mit6_0001_lec1"
+question = "What is the difference between declarative and imperative knowledge?"
+slides = [10]
+
+[[q]]
+deck = "mit6_0001_lec1"
+question = "What are the three parts of a recipe?"
+slides = [12]
+
+[[q]]
+deck = "mit6_0001_lec1"
+question = "How many primitives did Turing show you need to compute anything?"
+slides = [16]
+
+[[q]]
+deck = "mit6_0001_lec1"
+question = "What happens when you cast a float to an integer?"
+slides = [26]
+
+[[q]]
+deck = "mit6_0001_lec2"
+question = "How do you concatenate strings?"
+slides = [4]
+
+[[q]]
+deck = "mit6_0001_lec2"
+question = "How do I read what the user types in?"
+slides = [6]
+
+[[q]]
+deck = "mit6_0001_lec2"
+question = "What does the not operator do to a boolean?"
+slides = [8]
+
+[[q]]
+deck = "mit6_0001_lec2"
+question = "Why does indentation matter in Python?"
+slides = [12]
+
+[[q]]
+deck = "mit6_0001_lec2"
+question = "What are the default start and step values for range?"
+slides = [20]
+
+[[q]]
+deck = "mit6_0001_lec2"
+question = "Which loop does a break statement exit?"
+slides = [21, 22]
+
+[[q]]
+deck = "mit6_0001_lec3"
+question = "How do you get the length of a string?"
+slides = [4]
+
+[[q]]
+deck = "mit6_0001_lec3"
+question = "How does slicing a string with a step work?"
+slides = [6]
+
+[[q]]
+deck = "mit6_0001_lec3"
+question = "Can you modify a string after creating it?"
+slides = [7]
+
+[[q]]
+deck = "mit6_0001_lec3"
+question = "What is exhaustive enumeration?"
+slides = [12]
+
+[[q]]
+deck = "mit6_0001_lec3"
+question = "How close does the approximation need to be, using epsilon?"
+slides = [15, 16]
+
+[[q]]
+deck = "mit6_0001_lec3"
+question = "How many steps does bisection search take to converge?"
+slides = [19]
+
+[[q]]
+deck = "mit6_0001_lec4"
+question = "Why is decomposing code into modules useful?"
+slides = [9]
+
+[[q]]
+deck = "mit6_0001_lec4"
+question = "What does abstraction mean when writing functions?"
+slides = [10]
+
+[[q]]
+deck = "mit6_0001_lec4"
+question = "What is the difference between returning and printing a value?"
+slides = [20]
+
+[[q]]
+deck = "mit6_0001_lec4"
+question = "What does a function give back if it has no return statement?"
+slides = [19]
+
+[[q]]
+deck = "mit6_0001_lec4"
+question = "Can a function modify a global variable?"
+slides = [25, 26]
+
+[[q]]
+deck = "mit6_0001_lec4"
+question = "Can functions be passed as arguments to other functions?"
+slides = [21, 22, 23, 24]
+
+[[q]]
+deck = "mit6_0001_lec5"
+question = "Can you change an element of a tuple?"
+slides = [4]
+
+[[q]]
+deck = "mit6_0001_lec5"
+question = "How do you swap two variables using tuples?"
+slides = [5]
+
+[[q]]
+deck = "mit6_0001_lec5"
+question = "How do you add an element to the end of a list?"
+slides = [11]
+
+[[q]]
+deck = "mit6_0001_lec5"
+question = "How do you remove an element from a list?"
+slides = [13]
+
+[[q]]
+deck = "mit6_0001_lec5"
+question = "What is the difference between sort and sorted?"
+slides = [15, 21]
+
+[[q]]
+deck = "mit6_0001_lec5"
+question = "How do you clone a list so changes don't affect the original?"
+slides = [20]
