@@ -5,7 +5,7 @@ publicly: it has no accounts. Dashboards change, so button names may differ slig
 
 ## 1. API on Render
 1. Sign in at [render.com](https://render.com) with GitHub.
-2. Click **New**, then **Web Service**, and pick the `lecture-harness` repo.
+2. Click **New**, then **Web Service**, and pick the `LazyGenius` repo.
 3. Set **Language** to **Docker**, **Branch** to `main`, and **Instance Type** to **Free**.
 4. Leave the Docker settings at their defaults. `Dockerfile` builds the read-only demo by default.
 5. Add one environment variable for now: `HARNESS_CORS_ORIGINS` = `http://localhost:3000`.
@@ -13,7 +13,7 @@ publicly: it has no accounts. Dashboards change, so button names may differ slig
 
 ## 2. Web app on Vercel
 1. Sign in at [vercel.com](https://vercel.com) with GitHub.
-2. Click **Add New**, then **Project**, and import `lecture-harness`.
+2. Click **Add New**, then **Project**, and import `LazyGenius`.
 3. Set **Root Directory** to `web`.
 4. Add the environment variable `NEXT_PUBLIC_API_URL` with your Render URL, with no trailing slash.
 5. Click **Deploy** and copy the site's URL.

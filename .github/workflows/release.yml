@@ -16,9 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - run: docker build -t lecture-harness-demo .
-      - run: docker build --target api -t lecture-harness-api .
-      - run: docker build -t lecture-harness-web web
+      - run: docker build -t lazygenius-demo .
+      - run: docker build --target api -t lazygenius-api .
+      - run: docker build -t lazygenius-web web
 
   release:
     needs: images

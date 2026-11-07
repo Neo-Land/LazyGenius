@@ -1,6 +1,6 @@
-# Lecture Harness
+# LazyGenius
 
-[![CI](https://github.com/Neo-Land/lecture-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/Neo-Land/lecture-harness/actions/workflows/ci.yml)
+[![CI](https://github.com/Neo-Land/LazyGenius/actions/workflows/ci.yml/badge.svg)](https://github.com/Neo-Land/LazyGenius/actions/workflows/ci.yml)
 
 Lecture notes where every claim is checked against the slide it cites. An AI writes the notes, plain code
 fact-checks each one, and anything that still fails is deleted before you see it.

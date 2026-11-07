@@ -19,7 +19,7 @@ from .store import Store
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m app", description="Lecture Harness")
+    parser = argparse.ArgumentParser(prog="python -m app", description="LazyGenius")
     commands = parser.add_subparsers(dest="command", required=True)
     ingest = commands.add_parser("ingest", help="parse, summarize, and verify a PDF or PPTX")
     ingest.add_argument("file", type=Path)

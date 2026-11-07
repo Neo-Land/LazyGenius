@@ -31,7 +31,7 @@ export function Rail() {
   return (
     <nav className="rail" aria-label="Courses">
       <Link className="wordmark" href="/">
-        Lecture Harness
+        LazyGenius
       </Link>
       {courses?.length ? (
         <ul>
