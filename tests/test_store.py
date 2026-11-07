@@ -46,3 +46,17 @@ def test_data_survives_reopening(tmp_path, sorting_deck):
     path = tmp_path / "sub" / "h.db"
     Store(path).save_deck(sorting_deck)
     assert Store(path).get_deck("d1") == sorting_deck
+
+
+def test_records_calls_and_sums_usage_per_step_and_model(store):
+    used = {"input_tokens": 100, "output_tokens": 20, "cache_write_tokens": 0, "cache_read_tokens": 50}
+    store.record_call("judge", "claude-haiku-5-5", used)
+    store.record_call("judge", "claude-haiku-5-5", used)
+    store.record_call("summarize", "claude-sonnet-5-5", used)
+    rows = store.usage_since(days=7)
+    assert [(r["step"], r["calls"], r["input_tokens"], r["cache_read_tokens"]) for r in rows] == [
+        ("judge", 2, 200, 100),
+        ("summarize", 1, 100, 50),
+    ]
+    store.db.execute("UPDATE calls SET created_at = datetime('now', '-10 days') WHERE step = 'summarize'")
+    assert [r["step"] for r in store.usage_since(days=7)] == ["judge"]

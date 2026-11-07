@@ -1,4 +1,4 @@
-"""Command line: python -m app ingest <file> --course "CS 2" | python -m app ask "..." --course "CS 2"."""
+"""Command line: python -m app ingest <file> --course "CS 2" | ask "..." --course "CS 2" | sync | cost."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from pathlib import Path
 
 import httpx
 
+from . import cost
 from .config import ConfigError, settings, validate_settings
 from .llm import make_llm
 from .lms.canvas import CanvasClient, parse_ignore, parse_names
@@ -26,6 +27,8 @@ def _parser() -> argparse.ArgumentParser:
     ask = commands.add_parser("ask", help="ask a question about a course's slides")
     ask.add_argument("question")
     commands.add_parser("sync", help="pull new and changed lectures from Canvas")
+    spend = commands.add_parser("cost", help="estimated model spend by step, from recorded calls")
+    spend.add_argument("--days", type=int, default=7, help="how far back to look (default 7)")
     for command in (ingest, ask):
         command.add_argument("--course", required=True)
     for command in commands.choices.values():
@@ -46,11 +49,15 @@ def main(argv: list[str] | None = None, llm=None, judge=None, store: Store | Non
     args = _parser().parse_args(argv)
     cfg = replace(settings, offline=settings.offline or args.offline)
     setup_logging()
+    if args.command == "cost":  # reads the database only: no API key or model needed
+        store = store or Store(cfg.db_path)
+        print(cost.report(store.usage_since(args.days), args.days))
+        return 0
     try:
         validate_settings(cfg, need_model=llm is None)
-        if llm is None:
-            llm, judge = make_llm(cfg)
         store = store or Store(cfg.db_path)
+        if llm is None:
+            llm, judge = make_llm(cfg, record=store.record_call)
         if args.command == "sync":
             if not canvas and not (cfg.canvas_base_url and cfg.canvas_token):
                 raise ConfigError("Set CANVAS_BASE_URL and CANVAS_TOKEN to sync")

@@ -24,8 +24,10 @@ def _int_env(name: str, default: int) -> int:
 @dataclass(frozen=True)
 class Settings:
     anthropic_api_key: str | None = os.getenv("ANTHROPIC_API_KEY")
-    model: str = os.getenv("HARNESS_MODEL", "claude-sonnet-5-5")
-    judge_model: str = os.getenv("HARNESS_JUDGE_MODEL", "claude-haiku-5-5")
+    # One model per step (docs/BUILD_PLAN.md, Model routing). HARNESS_MODEL / HARNESS_JUDGE_MODEL still work.
+    model_writer: str = os.getenv("MODEL_WRITER") or os.getenv("HARNESS_MODEL", "claude-sonnet-5-5")
+    model_ask: str = os.getenv("MODEL_ASK", "claude-haiku-5-5")
+    model_judge: str = os.getenv("MODEL_JUDGE") or os.getenv("HARNESS_JUDGE_MODEL", "claude-haiku-5-5")
     max_revisions: int = _int_env("HARNESS_MAX_REVISIONS", 2)
     use_judge: bool = os.getenv("HARNESS_USE_JUDGE", "true").lower() == "true"
 

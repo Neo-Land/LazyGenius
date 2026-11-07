@@ -225,8 +225,9 @@ def _default_app() -> FastAPI:
     canvas = None
     if settings.canvas_base_url and settings.canvas_token:
         canvas = CanvasClient(settings.canvas_base_url, settings.canvas_token)
-    llm, judge = make_llm(settings)
-    return create_app(Store(settings.db_path), llm, judge, canvas)
+    store = Store(settings.db_path)
+    llm, judge = make_llm(settings, record=store.record_call)
+    return create_app(store, llm, judge, canvas)
 
 
 def __getattr__(name):  # lazy so importing app.api in tests doesn't need an API key

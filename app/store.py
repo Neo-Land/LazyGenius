@@ -25,6 +25,12 @@ CREATE TABLE IF NOT EXISTS traces (
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL, subject TEXT NOT NULL,
     attempt INTEGER NOT NULL, body TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS calls (
+    id INTEGER PRIMARY KEY, step TEXT NOT NULL, model TEXT NOT NULL,
+    input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL,
+    cache_write_tokens INTEGER NOT NULL, cache_read_tokens INTEGER NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -114,3 +120,32 @@ class Store:
     def get_traces(self, subject: str) -> list[dict]:
         rows = self.db.execute("SELECT body FROM traces WHERE subject=? ORDER BY id", (subject,)).fetchall()
         return [json.loads(r[0]) for r in rows]
+
+    # ---- model calls ---------------------------------------------------------
+    def record_call(self, step: str, model: str, usage: dict[str, int]) -> None:
+        """One API call's token counts. Never the prompt or reply: they hold course content."""
+        self.db.execute(
+            "INSERT INTO calls VALUES (NULL, :step, :model, :input_tokens, :output_tokens,"
+            " :cache_write_tokens, :cache_read_tokens, CURRENT_TIMESTAMP)",
+            {"step": step, "model": model, **usage},
+        )
+        self.db.commit()
+
+    def usage_since(self, days: int) -> list[dict]:
+        """Calls and token totals per step and model over the last `days` days."""
+        rows = self.db.execute(
+            "SELECT step, model, COUNT(*), SUM(input_tokens), SUM(output_tokens), SUM(cache_write_tokens),"
+            " SUM(cache_read_tokens) FROM calls WHERE created_at >= datetime('now', ?)"
+            " GROUP BY step, model ORDER BY step, model",
+            (f"-{days} days",),
+        ).fetchall()
+        keys = (
+            "step",
+            "model",
+            "calls",
+            "input_tokens",
+            "output_tokens",
+            "cache_write_tokens",
+            "cache_read_tokens",
+        )
+        return [dict(zip(keys, r, strict=True)) for r in rows]

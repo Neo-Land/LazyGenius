@@ -3,10 +3,17 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
+### Added
+- Every model call records its token counts; `python -m app cost` prints estimated spend by step and model.
+
 ### Changed
+- One model per step: `MODEL_WRITER` (guides, Sonnet), `MODEL_ASK` (questions, now Haiku), `MODEL_JUDGE` (Haiku).
+  `HARNESS_MODEL` and `HARNESS_JUDGE_MODEL` still work.
 - Renamed the project from Lecture Harness to LazyGenius (README, package names, Docker images, UI title, docs).
 
 ### Fixed
+- Live calls work on current models: the writer no longer forces a tool call (a 400 on Claude Sonnet 5.5),
+  and the judge reads a structured verdict instead of the first block, which is now often a thinking block.
 - Reverted a dependency update that broke clean frontend installs. Required checks now apply to admins.
 
 ## [0.6.0] — 2026-10-31
