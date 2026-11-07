@@ -2,7 +2,8 @@
 
 Three layers, cheapest first:
   1. citation  - claim cites slides that exist (deterministic)
-  2. exact_fact - numbers / quoted terms / `code` in the claim appear in cited slides (deterministic)
+  2. exact_fact - expressions / numbers / quoted terms / `code` in the claim appear in cited slides, and
+                  rare deck terms (names) sit on the slides holding those facts (deterministic)
   3. judge     - an LLM decides whether the cited slides support the paraphrase (probabilistic)
 """
 
@@ -10,6 +11,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter
 from decimal import Decimal
 from typing import NamedTuple, Protocol
 
@@ -47,6 +49,8 @@ STOPWORDS = frozenset(
     {"a", "an", "the", "is", "are", "was", "were", "be", "been", "of", "in", "on", "at", "to", "by"}
     | {"for", "with", "and", "or", "as", "it", "its", "that", "this"}
 )
+# A term on at most this share of a deck's slides (minimum 1) is a name, like "quicksort" or "bisection".
+RARE_SHARE = 0.25
 SUPERSCRIPTS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789-")
 DASHES = re.compile("[‐‑‒–—−]")
 
@@ -163,7 +167,54 @@ def _locate_facts(text: str, sentences: list[Sentence]) -> tuple[list[str], set[
     return missing, found
 
 
-def _check(label: str, text: str, slides: list[int], deck: Deck, judge: Judge | None) -> list[Issue]:
+def _terms(normed: str) -> list[str]:
+    """Content words in order, without expressions, stopwords or units."""
+    return [w for w in WORD.findall(EXPR.sub(" ", normed)) if w not in STOPWORDS and not UNIT.fullmatch(w)]
+
+
+def _deck_terms(deck: Deck) -> dict[int, set[str]]:
+    """Each slide's words plus adjacent word pairs joined, so "quick sort" also reads as "quicksort"."""
+    out = {}
+    for slide in deck.slides:
+        words = _terms(_norm(slide.text))
+        out[slide.number] = set(words) | {a + b for a, b in zip(words, words[1:], strict=False)}
+    return out
+
+
+def _names(text: str, known: set[str]) -> list[str]:
+    """Deck terms that text mentions, reading two words as one term when the deck has the pair."""
+    names = []
+    for line in text.splitlines():
+        words, i = _terms(_norm(line)), 0
+        while i < len(words):
+            pair = "".join(words[i : i + 2])
+            if i + 1 < len(words) and pair in known:
+                names.append(pair)
+                i += 2
+                continue
+            if words[i] in known:
+                names.append(words[i])
+            i += 1
+    return names
+
+
+def _misplaced_names(text: str, deck: Deck, fact_slides: set[int]) -> list[str]:
+    """Rare deck terms in text, when none of them is on a fact slide (the anchor rule).
+    A claim about the fact's slide shares some unusual word with it ("epsilon", "range"); a swapped
+    name like "Quicksort ... O(n log n)" on the merge sort slide shares none. Rare alone isn't enough:
+    on real decks, plain words like "example" sit on few slides. Common terms and words the deck never
+    uses are left to the judge."""
+    per_slide = _deck_terms(deck)
+    counts = Counter(t for terms in per_slide.values() for t in terms)
+    cutoff = max(1, int(len(deck.slides) * RARE_SHARE))
+    rare = list(dict.fromkeys(n for n in _names(text, set(counts)) if counts[n] <= cutoff))
+    anchored = any(name in per_slide[n] for name in rare for n in fact_slides)
+    return [] if anchored else rare
+
+
+def _check(
+    label: str, text: str, slides: list[int], deck: Deck, judge: Judge | None, *, names: bool = True
+) -> list[Issue]:
     """Run the citation, exact-fact, and judge layers, stopping at the first that fails."""
     missing = [n for n in slides if deck.slide(n) is None]
     if missing:
@@ -174,9 +225,16 @@ def _check(label: str, text: str, slides: list[int], deck: Deck, judge: Judge | 
 
     raw_evidence = "\n".join(deck.slide(n).text for n in slides)
     sentences = [(n, _norm(s)) for n in slides for s in _sentences(deck.slide(n).text)]
-    absent, _fact_slides = _locate_facts(text, sentences)
+    absent, fact_slides = _locate_facts(text, sentences)
     if absent:
         return [Issue(claim=label, check="exact_fact", detail=f"not found on slides {slides}: {absent}")]
+    fact_slides = fact_slides or set(slides)  # a claim with no facts names things on any cited slide
+    misplaced = _misplaced_names(text, deck, fact_slides) if names else []
+    if misplaced:
+        where = sorted(fact_slides)
+        return [
+            Issue(claim=label, check="exact_fact", detail=f"{misplaced} not on slides {where} with the facts")
+        ]
 
     if judge:
         ok, why = judge.supports(text, raw_evidence)
@@ -200,10 +258,11 @@ def _flatten(value) -> list[str]:
 
 
 def check_visual(visual: VisualSpec, deck: Deck, judge: Judge | None = None) -> list[Issue]:
-    """Check a visual's title and contents like a claim. Numbers pool across cells, so this cannot
-    tell whether a right number sits in the wrong cell; the judge sees the whole visual for that."""
+    """Check a visual's title and contents like a claim, one cell per line. This cannot tell whether a
+    right number sits in the wrong cell, and names are skipped because column headers like "Time" are
+    generic; the judge sees the whole visual for both."""
     text = "\n".join([visual.title, *_flatten(visual.data)])
-    return _check(f"[visual] {visual.title}", text, visual.slides, deck, judge)
+    return _check(f"[visual] {visual.title}", text, visual.slides, deck, judge, names=False)
 
 
 def verify_claims(claims: list[Claim], deck: Deck, judge: Judge | None = None) -> VerificationReport:

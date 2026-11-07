@@ -16,13 +16,18 @@ Over 5 MIT lecture decks (see `evals/SOURCES.md`).
 | Nonexistent slide | 3 / 3 | invented citation |
 | Wrong term or code | 6 / 6 | renamed function or term |
 | **Misplaced number** | **2 / 5** (was 0 / 5) | number is on the slide, but attached to the wrong thing |
-| **Unsupported paraphrase** | **0 / 6** | no checkable fact, wrong meaning |
+| **Unsupported paraphrase** | **1 / 6** (was 0 / 6) | no checkable fact, wrong meaning |
 | True control claims (false alarms) | 0 / 18 | correct claims wrongly rejected |
 
-Overall recall is 31 / 40 (77.5%, was 72.5% before same-sentence matching), with no new false alarms.
+Overall recall is 32 / 40 (80%; 72.5% before Phase 1), with no new false alarms. Same-sentence matching
+added 2 misplaced numbers; the name check added 1 paraphrase whose rare terms aren't on its cited slide.
 Unsupported paraphrases are what the AI judge is for, and whether it catches them is **unmeasured** until
 a live run. Still missed: swapped percentages (numbers with units skip the context check) and code results
 whose context word is generic or split onto another line.
+
+The name check was tuned here: "a rare deck term must be on the fact's slide" caught 36 / 40 but raised
+false alarms to 5 / 18 (plain words like "example" sit on few slides), so it only fires when *none* of a
+claim's rare terms is on a fact slide.
 
 ### Full pipeline
 Offline mode only quotes slides, so it proves the pipeline runs and nothing about quality. Its 100%
