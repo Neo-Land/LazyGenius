@@ -1,5 +1,8 @@
 # Project Plan — Lecture Harness
 
+> **Superseded (2026-11-07) by [`BUILD_PLAN.md`](BUILD_PLAN.md).** Kept as a record of the
+> original build under the old name. Don't work from this file.
+
 **Goal:** a portfolio-ready agent harness that turns lecture slides into verified abstracts and
 visuals, with a web UI for per-course questions, backed by measured accuracy numbers.
 

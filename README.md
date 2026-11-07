@@ -24,7 +24,8 @@ flowchart LR
 
 ## Results so far
 
-Offline run over 5 MIT lectures, with draft test sets. **The real model hasn't been run yet.**
+Offline run over 5 MIT lectures. **The real model hasn't been run yet, and the eval sets are unreviewed
+drafts until Phase 7** (hand-labeled claims), so treat these numbers as provisional.
 
 | Verifier without the AI judge | Caught |
 |---|---|
