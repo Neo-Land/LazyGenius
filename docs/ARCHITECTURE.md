@@ -18,6 +18,7 @@ LMS/upload ─► parsing.py ─► store.py ─► harness.py ─────�
 | `models.py` | Shared pydantic types (`Slide`, `Deck`, `Claim`, `VisualSpec`, `Summary`, `Answer`, reports) | yes |
 | `parsing.py` | PDF/PPTX → numbered slides (text, tables, speaker notes) | yes |
 | `verifier.py` | Citation, exact-fact, and judge checks per claim | layers 1–2 yes, 3 no |
+| `facts.py` | Fact matching for the exact-fact layer: normalizing, numbers in context, expressions, names | yes |
 | `llm.py` | Claude calls with forced tool use; `ClaudeJudge`; `ExtractiveLLM` for offline mode | no (offline mode yes) |
 | `harness.py` | Generate → verify → revise loop; answers over retrieved slides | yes (orchestration) |
 | `retrieval.py` | BM25 keyword search over a course's slides | yes |

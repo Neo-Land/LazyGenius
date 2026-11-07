@@ -13,11 +13,12 @@ from datetime import date
 from pathlib import Path
 
 from app.config import settings, validate_settings
+from app.facts import norm
 from app.harness import summarize_deck
 from app.llm import ExtractiveLLM, make_llm
 from app.models import Claim, Deck, Summary
 from app.parsing import parse_file
-from app.verifier import _norm, check_claim
+from app.verifier import check_claim
 
 from .decks import DECKS_DIR, fetch_decks
 
@@ -30,7 +31,7 @@ PRICES = {"writer": (4.0, 20.0), "judge": (1.0, 5.0)}
 def captured(point: dict, claims: list[Claim]) -> bool:
     """A golden point counts if one claim citing one of its slides contains all of its keywords."""
     return any(
-        set(c.slides) & set(point["slides"]) and all(k in _norm(c.text) for k in point["keywords"])
+        set(c.slides) & set(point["slides"]) and all(k in norm(c.text) for k in point["keywords"])
         for c in claims
     )
 
