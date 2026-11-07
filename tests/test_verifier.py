@@ -161,5 +161,12 @@ def test_review_cases_are_caught(claim, slide):
     assert check_claim(Claim(text=claim, slides=[slide]), REVIEW_DECK)
 
 
+@pytest.mark.xfail(strict=True, reason="names unchecked: O(n^2) is on cited slide 2, but for Quicksort")
+def test_fact_from_another_cited_slide_does_not_ground_a_swapped_name():
+    # Same-sentence matching alone passes this; checking "Merge sort" on the fact's slide catches it.
+    claim = Claim(text="Merge sort's worst case is O(n^2).", slides=[1, 2])
+    assert check_claim(claim, REVIEW_DECK)
+
+
 def test_review_control_claim_passes():
     assert check_claim(Claim(text="Merge sort's worst case is O(n log n).", slides=[1]), REVIEW_DECK) == []
