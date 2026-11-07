@@ -13,6 +13,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
   calls" no longer passes on "Lecture 3"). Planted-error recall 72.5% → 77.5%, no new false alarms.
 - Verifier rejects claims whose rare deck terms are all off the fact's slide ("Quicksort … O(n log n)"
   citing the merge sort slide). Planted-error recall 77.5% → 80%, no new false alarms.
+- With no judge, a claim with nothing checkable, or one that flips its slide's negation ("does not
+  require"), passes only as a near-verbatim quote of a cited sentence. No-judge recall 80% → 92.5%.
 
 ## [0.6.0] — 2026-10-31
 ### Added

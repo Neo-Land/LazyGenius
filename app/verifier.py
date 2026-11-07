@@ -11,7 +11,15 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from .facts import extract_facts, locate_facts, misplaced_names, norm, split_sentences
+from .facts import (
+    extract_facts,
+    flips_negation,
+    locate_facts,
+    misplaced_names,
+    norm,
+    quotes,
+    split_sentences,
+)
 from .models import Claim, Deck, Issue, Summary, VerificationReport, VisualSpec
 
 __all__ = ["Judge", "check_claim", "check_visual", "extract_facts", "verify_claims", "verify_summary"]
@@ -37,6 +45,7 @@ def _check(
     absent, fact_slides = locate_facts(text, sentences)
     if absent:
         return [Issue(claim=label, check="exact_fact", detail=f"not found on slides {slides}: {absent}")]
+    has_facts = bool(fact_slides)
     fact_slides = fact_slides or set(slides)  # a claim with no facts names things on any cited slide
     misplaced = misplaced_names(text, deck, fact_slides) if names else []
     if misplaced:
@@ -47,8 +56,13 @@ def _check(
 
     if judge:
         ok, why = judge.supports(text, raw_evidence)
-        if not ok:
-            return [Issue(claim=label, check="judge", detail=why)]
+        return [] if ok else [Issue(claim=label, check="judge", detail=why)]
+    # No judge, so meaning is unchecked. Facts alone can't vouch for a claim with none, or for one that
+    # flips its slide's negation; those pass only as a near-verbatim quote of a cited sentence.
+    on_fact_slides = [(n, s) for n, s in sentences if n in fact_slides]
+    if (not has_facts or flips_negation(text, on_fact_slides)) and not quotes(text, sentences):
+        why = "has no checkable facts" if not has_facts else "flips a negation on its slide"
+        return [Issue(claim=label, check="judge", detail=f"needs the judge (none ran): {why}, not a quote")]
     return []
 
 

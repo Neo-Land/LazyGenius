@@ -45,6 +45,8 @@ STOPWORDS = frozenset(
 )
 # A term on at most this share of a deck's slides (minimum 1) is a name, like "quicksort" or "bisection".
 RARE_SHARE = 0.25
+# Negation words, plus contractions like "isn't" (norm turns ’ into ').
+NEGATION = re.compile(r"\b(?:not|no|never|none|cannot|without)\b|n't\b")
 SUPERSCRIPTS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789-")
 DASHES = re.compile("[‐‑‒–—−]")
 
@@ -201,3 +203,39 @@ def misplaced_names(text: str, deck: Deck, fact_slides: set[int]) -> list[str]:
     rare = list(dict.fromkeys(n for n in names_in(text, set(counts)) if counts[n] <= cutoff))
     anchored = any(name in per_slide[n] for name in rare for n in fact_slides)
     return [] if anchored else rare
+
+
+def negated(normed: str) -> bool:
+    return bool(NEGATION.search(normed))
+
+
+def _in_order(words: list[str], sentence: list[str]) -> bool:
+    remaining = iter(sentence)
+    return all(w in remaining for w in words)
+
+
+def quotes(text: str, sentences: list[Sentence]) -> bool:
+    """Each line of text is a near-verbatim quote of one sentence: its content words appear there in the
+    same order, with the same negation. Stopwords, punctuation and spacing may differ."""
+    for line in text.splitlines():
+        claim = norm(line)
+        words = content_words(claim)
+        if words and not any(
+            negated(claim) == negated(s) and _in_order(words, content_words(s)) for _, s in sentences
+        ):
+            return False
+    return True
+
+
+def flips_negation(text: str, sentences: list[Sentence]) -> bool:
+    """A line of text disagrees on negation with every sentence it shares the most words with, as in
+    "does not require" against "requires". Ties count as agreement if any tied sentence agrees: slides
+    often split one point over lines, e.g. "sorted(L) does not mutate L" next to "L.sort()" / "mutates L"."""
+    for line in text.splitlines():
+        claim = norm(line)
+        words = set(content_words(claim))
+        overlaps = [(len(words & set(content_words(s))), s) for _, s in sentences]
+        best = max((n for n, _ in overlaps), default=0)
+        if best and all(negated(claim) != negated(s) for n, s in overlaps if n == best):
+            return True
+    return False
