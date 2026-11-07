@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from decimal import Decimal
-from typing import Protocol
+from typing import NamedTuple, Protocol
 
 from .models import Claim, Deck, Issue, Summary, VerificationReport, VisualSpec
 
@@ -40,12 +40,27 @@ QUOTED = re.compile(r"[\"“]([^\"”]{2,60})[\"”]")
 CODE = re.compile(r"`([^`]{1,60})`")
 # Asymptotic notation such as o(n^2) or θ(n log n), one level of nested parentheses, on normalized text.
 EXPR = re.compile(r"(?<!\w)[oθω]\((?:[^()]|\([^()]*\))*\)")
+# Slide text splits into lines and sentences; a dot inside 0.42 has no space after it, so it never splits.
+SENTENCE_END = re.compile(r"\n|(?<=[.!?])\s+")
+WORD = re.compile(r"[a-z]+")
+STOPWORDS = frozenset(
+    {"a", "an", "the", "is", "are", "was", "were", "be", "been", "of", "in", "on", "at", "to", "by"}
+    | {"for", "with", "and", "or", "as", "it", "its", "that", "this"}
+)
 SUPERSCRIPTS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789-")
 DASHES = re.compile("[‐‑‒–—−]")
 
 
 class Judge(Protocol):
     def supports(self, claim: str, evidence: str) -> tuple[bool, str]: ...
+
+
+class Num(NamedTuple):
+    value: Decimal
+    unit: str | None  # canonical unit, or None when the number is bare
+    raw: str
+    start: int
+    end: int
 
 
 def _norm(s: str) -> str:
@@ -59,13 +74,19 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip().lower()
 
 
-def _numbers(normed: str) -> list[tuple[Decimal, str | None, str]]:
-    """(value, canonical unit or None, original text) for every standalone number."""
+def _sentences(raw: str) -> list[str]:
+    """Split slide text into lines and sentences. Runs before _norm, which erases line breaks."""
+    return [s for s in SENTENCE_END.split(raw) if s.strip()]
+
+
+def _numbers(normed: str) -> list[Num]:
+    """Every standalone number with its unit and position."""
     out = []
     for m in NUMBER.finditer(normed):
         unit = UNIT.match(normed, m.end())
         name = unit.group(1) if unit else None
-        out.append((Decimal(m.group(0).replace(",", "")), UNIT_ALIASES.get(name, name), m.group(0)))
+        value = Decimal(m.group(0).replace(",", ""))
+        out.append(Num(value, UNIT_ALIASES.get(name, name), m.group(0), m.start(), m.end()))
     return out
 
 
@@ -77,23 +98,46 @@ def _squash(expr: str) -> str:
 def extract_facts(text: str) -> list[str]:
     """Things that must appear in the source: expressions, numbers outside them, "quoted" phrases, `code`."""
     normed = _norm(text)
-    numbers = [n[2] for n in _numbers(EXPR.sub(" ", normed))]
+    numbers = [n.raw for n in _numbers(EXPR.sub(" ", normed))]
     return EXPR.findall(normed) + numbers + QUOTED.findall(text) + CODE.findall(text)
 
 
-def _missing_facts(text: str, evidence: str) -> list[str]:
-    """Facts from text absent from normalized evidence. Expressions compare whole, so the 2 in o(n^2)
-    is never matched alone. Numbers compare by value, terms as whole words.
-    A number with a unit passes if the slide has it bare (a table column may hold the unit), but not
-    if the slide only has it with a different unit."""
-    claim = _norm(text)
+def _context(claim: str, num: Num) -> set[str]:
+    """The nearest content word on each side of a number: not a stopword, a unit, or a number."""
+    words = [m for m in WORD.finditer(claim) if m[0] not in STOPWORDS and not UNIT.fullmatch(m[0])]
+    before = [m[0] for m in words if m.end() <= num.start]
+    after = [m[0] for m in words if m.start() >= num.end]
+    return set(before[-1:] + after[:1])
+
+
+def _number_found(num: Num, claim: str, sentences: list[str]) -> bool:
+    """A number with a unit needs that value with the same unit, or bare (a table column may hold the
+    unit), anywhere on the cited slides. A bare number needs one sentence holding both the value and
+    one of its context words, so "3 recursive calls" can't borrow the 3 from "Lecture 3". A bare number
+    with no context words (a lone table cell) only needs the value somewhere."""
+    if num.unit:
+        seen = {n.unit for s in sentences for n in _numbers(s) if n.value == num.value}
+        return num.unit in seen or None in seen
+    context = _context(claim, num)
+    return any(
+        any(n.value == num.value for n in _numbers(s)) and (not context or context & set(WORD.findall(s)))
+        for s in sentences
+    )
+
+
+def _missing_facts(text: str, sentences: list[str]) -> list[str]:
+    """Facts from text absent from the cited slides' normalized sentences. Expressions compare whole,
+    so the 2 in o(n^2) never matches alone. Numbers need matching context (see _number_found), judged
+    per line of text so a visual's cells don't lend each other context. Terms match as whole words."""
+    evidence = " ".join(sentences)
     have_exprs = {_squash(e) for e in EXPR.findall(evidence)}
-    missing = [e for e in EXPR.findall(claim) if _squash(e) not in have_exprs]
-    have = _numbers(EXPR.sub(" ", evidence))
-    for value, unit, raw in _numbers(EXPR.sub(" ", claim)):
-        units = {u for v, u, _ in have if v == value}
-        if not units or (unit and unit not in units and None not in units):
-            missing.append(raw)
+    plain = [EXPR.sub(" ", s) for s in sentences]
+    missing = []
+    for line in text.splitlines():
+        claim = _norm(line)
+        missing += [e for e in EXPR.findall(claim) if _squash(e) not in have_exprs]
+        claim = EXPR.sub(" ", claim)
+        missing += [n.raw for n in _numbers(claim) if not _number_found(n, claim, plain)]
     for term in QUOTED.findall(text) + CODE.findall(text):
         if not re.search(rf"(?<!\w){re.escape(_norm(term))}(?!\w)", evidence):
             missing.append(term)
@@ -110,7 +154,8 @@ def _check(label: str, text: str, slides: list[int], deck: Deck, judge: Judge | 
         return [Issue(claim=label, check="citation", detail=f"cites slide(s) with no text {blank}")]
 
     raw_evidence = "\n".join(deck.slide(n).text for n in slides)
-    absent = _missing_facts(text, _norm(raw_evidence))
+    sentences = [_norm(s) for n in slides for s in _sentences(deck.slide(n).text)]
+    absent = _missing_facts(text, sentences)
     if absent:
         return [Issue(claim=label, check="exact_fact", detail=f"not found on slides {slides}: {absent}")]
 

@@ -66,6 +66,28 @@ def test_expressions_compare_whole(claim, slide, ok):
     assert _grounded(claim, slide) is ok
 
 
+@pytest.mark.parametrize(
+    "claim, slide, ok",
+    [
+        ("Merge sort makes 2 recursive calls.", "Uses 2 recursive calls. Lecture 3", True),
+        ("There are 3 recursive calls.", "Lecture 3\nRecursion uses calls", False),  # words on another line
+        ("There are 3 recursive calls.", "Lecture 3. Recursion uses calls", False),  # another sentence
+        ("Recursive calls: 3.", "There are 3 recursive calls", True),  # context word on either side
+        ("It took 2 seconds.", "Time: 2 sec", True),  # a unit is context enough
+        ("The answer is 7.", "Lecture 7", False),  # "answer" is context, and it isn't there
+        ("It is 7.", "Lecture 7", True),  # only stopwords around 7: value anywhere (the fallback)
+    ],
+)
+def test_bare_numbers_need_context_from_the_same_sentence(claim, slide, ok):
+    assert _grounded(claim, slide) is ok
+
+
+def test_visual_cells_do_not_lend_each_other_context():
+    deck = _deck("Uses 2 recursive calls")
+    table = _table([["Merge sort", "2"]])  # the lone 2 has no context words of its own
+    assert verify_summary(Summary(abstract=[], visuals=[table]), deck).passed
+
+
 def _deck(*texts):
     return Deck(
         id="x", course="c", title="t", slides=[Slide(number=i + 1, text=t) for i, t in enumerate(texts)]
@@ -171,7 +193,7 @@ def _known_miss(claim, slide, why, name):
     "claim, slide",
     [
         pytest.param("Merge sort's worst case is O(n^2).", 1, id="exponent"),
-        _known_miss("Merge sort makes 3 recursive calls.", 1, "3 matches 'Lecture 3'", "lecture-number"),
+        pytest.param("Merge sort makes 3 recursive calls.", 1, id="lecture-number"),
         _known_miss("Quicksort's worst case is O(n log n).", 1, "names unchecked", "swapped-name"),
         _known_miss("Binary search does not require a sorted list.", 3, "negation ignored", "negation"),
     ],
