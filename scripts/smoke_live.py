@@ -14,6 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app import cost  # noqa: E402
 from app.config import ConfigError, settings, validate_settings  # noqa: E402
 from app.harness import summarize_deck  # noqa: E402
 from app.llm import make_llm  # noqa: E402
@@ -33,11 +34,18 @@ def main() -> int:
         print(f"error: {err}", file=sys.stderr)
         return 2
 
-    llm, judge = make_llm(cfg)
+    calls = []
+    llm, judge = make_llm(
+        cfg, record=lambda step, model, used: calls.append({"step": step, "model": model, **used})
+    )
     result = summarize_deck(deck, llm, judge, cfg.max_revisions)
     usage = {"writer": llm.usage, "judge": judge.usage if judge else None}
+    priced = [cost.usd(c) for c in calls]
     run = {
         "model": llm.model_id,
+        "judge_model": judge.model_id if judge else None,
+        "calls": len(calls),
+        "usd_estimate": None if None in priced else round(sum(priced), 4),
         "prompt_version": llm.prompt_version,
         "attempts": result.attempts,
         "report": result.report.model_dump(),
