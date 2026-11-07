@@ -35,8 +35,8 @@ labeled with the slides that answer it. Search runs over all 5 decks at once, as
 Stemming fixed the word-form misses ("modify"/"modified", "returning"/"return", "clone"/"cloning"). The
 one miss left, "What does abstraction mean when writing functions?", is a ranking problem: "functions" and
 "abstraction" appear on many slides, so the definition slide falls outside the top 5. The questions were
-written by the same author who chose the fix, so treat these as a lower bound on how much work is left, not a
-final score, until Neo's own-course questions are added. Embeddings were not tried: at 29 / 30 there is
+written by the same author who chose the fix, so treat these as an upper bound, not a final score, until
+Neo's own-course questions are added. Embeddings were not tried: at 29 / 30 there is
 little left to win on this set, and they add a model call or a large dependency.
 
 ### Full pipeline
