@@ -172,3 +172,21 @@ def test_old_model_variables_still_work(monkeypatch):
     finally:
         monkeypatch.undo()
         importlib.reload(config)
+
+
+def test_every_call_is_recorded_even_when_the_reply_is_unusable(sorting_deck):
+    calls = []
+    reply = _tool_reply({"abstract": []}, stop="max_tokens")
+    reply["usage"] = {"input_tokens": 900, "output_tokens": 16000, "cache_read_input_tokens": 100}
+    llm = ClaudeLLM("writer", client=_sdk(reply, []), record=lambda *call: calls.append(call))
+    with pytest.raises(LLMError):
+        llm.summarize(sorting_deck, [])
+    used = {"input_tokens": 900, "output_tokens": 16000, "cache_write_tokens": 0, "cache_read_tokens": 100}
+    assert calls == [("summarize", "writer", used)]
+
+    judge_reply = {
+        "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": '{"supported": true, "reason": "ok"}'}],
+    }
+    ClaudeJudge("j", client=_sdk(judge_reply, []), record=lambda *call: calls.append(call)).supports("c", "e")
+    assert calls[-1][:2] == ("judge", "j")

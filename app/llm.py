@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Protocol
 
 from pydantic import BaseModel
@@ -65,25 +66,46 @@ def _check_stop(resp) -> None:
         raise LLMError(f"model stopped early: {resp.stop_reason}")
 
 
-def _add_usage(totals: dict[str, int], resp) -> None:
-    totals["input_tokens"] += resp.usage.input_tokens
-    totals["output_tokens"] += resp.usage.output_tokens
+# Called once per API call with (step, model, token counts), e.g. Store.record_call.
+Recorder = Callable[[str, str, dict[str, int]], None]
+
+
+def _track(client, step: str, model: str, resp) -> None:
+    """Add a response's tokens to the client's running totals and hand them to its recorder. Runs
+    before the reply is checked, because a cut-off or refused reply is still billed."""
+    used = {
+        "input_tokens": resp.usage.input_tokens,
+        "output_tokens": resp.usage.output_tokens,
+        "cache_write_tokens": resp.usage.cache_creation_input_tokens or 0,
+        "cache_read_tokens": resp.usage.cache_read_input_tokens or 0,
+    }
+    client.usage["input_tokens"] += used["input_tokens"]
+    client.usage["output_tokens"] += used["output_tokens"]
+    if client.record:
+        client.record(step, model, used)
 
 
 class ClaudeLLM:
-    """Uses forced tool calls so output is always valid JSON matching our pydantic models."""
+    """Asks for a tool call whose input is validated against our pydantic models."""
 
     prompt_version = PROMPT_VERSION
 
-    def __init__(self, model: str | None = None, ask_model: str | None = None, client=None):
+    def __init__(
+        self,
+        model: str | None = None,
+        ask_model: str | None = None,
+        client=None,
+        record: Recorder | None = None,
+    ):
         import anthropic  # imported lazily so tests don't need a key
 
+        self.record = record
         self.client = client or anthropic.Anthropic(api_key=settings.anthropic_api_key)
         self.model_id = model or settings.model_writer  # writes guides; recorded with each summary
         self.ask_model = ask_model or settings.model_ask  # answers questions
         self.usage = {"input_tokens": 0, "output_tokens": 0}
 
-    def _call(self, model: str, system: str, user: str, schema: dict, tool: str) -> dict:
+    def _call(self, step: str, model: str, system: str, user: str, schema: dict, tool: str) -> dict:
         """One request that must end in a call to `tool`. Current models reject forced tool choice
         (tool_choice "tool"/"any" is a 400), so the prompt asks for the call and the reply is checked.
         The schema stays non-strict: strict mode would forbid the free-form `VisualSpec.data` object."""
@@ -95,7 +117,7 @@ class ClaudeLLM:
             tool_choice={"type": "auto"},
             messages=[{"role": "user", "content": user}],
         )
-        _add_usage(self.usage, resp)
+        _track(self, step, model, resp)
         _check_stop(resp)
         call = next((b for b in resp.content if b.type == "tool_use" and b.name == tool), None)
         if call is None:
@@ -105,21 +127,26 @@ class ClaudeLLM:
     def summarize(self, deck: Deck, feedback: list[Issue]) -> Summary:
         slides = _format_slides([(deck.title, s) for s in deck.slides])
         user = slides + _format_feedback(feedback)
-        data = self._call(self.model_id, SUMMARY_RULES, user, Summary.model_json_schema(), "submit_summary")
+        data = self._call(
+            "summarize", self.model_id, SUMMARY_RULES, user, Summary.model_json_schema(), "submit_summary"
+        )
         return Summary.model_validate(data)
 
     def answer(self, question: str, slides: list[tuple[str, Slide]], feedback: list[Issue]) -> Answer:
         user = f"{_format_slides(slides)}\n\nQUESTION: {question}{_format_feedback(feedback)}"
-        data = self._call(self.ask_model, ANSWER_RULES, user, Answer.model_json_schema(), "submit_answer")
+        data = self._call(
+            "answer", self.ask_model, ANSWER_RULES, user, Answer.model_json_schema(), "submit_answer"
+        )
         return Answer.model_validate(data)
 
 
 class ClaudeJudge:
     """LLM-as-judge for paraphrased claims. Use a cheaper model than the writer."""
 
-    def __init__(self, model: str | None = None, client=None):
+    def __init__(self, model: str | None = None, client=None, record: Recorder | None = None):
         import anthropic
 
+        self.record = record
         self.client = client or anthropic.Anthropic(api_key=settings.anthropic_api_key)
         self.model_id = model or settings.model_judge
         self.usage = {"input_tokens": 0, "output_tokens": 0}
@@ -137,7 +164,7 @@ class ClaudeJudge:
             )
         except ValueError:  # the reply wasn't a valid Verdict
             return False, "judge returned unparseable output"
-        _add_usage(self.usage, resp)
+        _track(self, "judge", self.model_id, resp)
         verdict = resp.parsed_output
         if resp.stop_reason != "end_turn" or verdict is None:
             return False, f"judge gave no verdict ({resp.stop_reason})"
@@ -169,9 +196,10 @@ def _longest_line(text: str) -> str:
     return max(text.splitlines(), key=len)
 
 
-def make_llm(cfg) -> tuple[LLM, object | None]:
-    """The model and judge for these settings. Offline mode has no judge."""
+def make_llm(cfg, record: Recorder | None = None) -> tuple[LLM, object | None]:
+    """The model and judge for these settings. Offline mode has no judge and makes no API calls.
+    `record` receives every call's token counts, e.g. Store.record_call."""
     if cfg.offline:
         return ExtractiveLLM(), None
-    llm = ClaudeLLM(cfg.model_writer, cfg.model_ask)
-    return llm, ClaudeJudge(cfg.model_judge) if cfg.use_judge else None
+    llm = ClaudeLLM(cfg.model_writer, cfg.model_ask, record=record)
+    return llm, ClaudeJudge(cfg.model_judge, record=record) if cfg.use_judge else None

@@ -48,9 +48,9 @@ def main(argv: list[str] | None = None, llm=None, judge=None, store: Store | Non
     setup_logging()
     try:
         validate_settings(cfg, need_model=llm is None)
-        if llm is None:
-            llm, judge = make_llm(cfg)
         store = store or Store(cfg.db_path)
+        if llm is None:
+            llm, judge = make_llm(cfg, record=store.record_call)
         if args.command == "sync":
             if not canvas and not (cfg.canvas_base_url and cfg.canvas_token):
                 raise ConfigError("Set CANVAS_BASE_URL and CANVAS_TOKEN to sync")
