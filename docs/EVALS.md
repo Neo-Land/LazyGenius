@@ -67,6 +67,7 @@ grounding is guaranteed by construction, and its 10% coverage is not a model sco
 ```bash
 python -m evals.run                         # free, downloads the decks
 python -m evals.retrieval                   # free, retrieval recall@5
+python -m evals.retrieval --decks data/cs101 --questions my_qs.toml   # your own course; reports stay local
 python -m evals.run --live --max-usd 1      # costs money, run by Neo
 ```
 Or run the **Eval** workflow from the repo's Actions tab, after adding the `ANTHROPIC_API_KEY` secret for

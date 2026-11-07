@@ -3,7 +3,7 @@ from pathlib import Path
 
 from app.models import Deck, Slide
 from app.retrieval import search
-from evals.retrieval import rank_of, score
+from evals.retrieval import load_decks, rank_of, score
 
 
 def test_search_ranks_the_matching_slide_first(sorting_deck):
@@ -43,3 +43,11 @@ def test_search_matches_word_forms():
     )
     assert [s.number for _, s, _ in search([deck], "sorting algorithms")] == [1]
     assert [s.number for _, s, _ in search([deck], "recursively")] == [2]
+
+
+def test_load_decks_reads_every_slide_file_in_a_folder(tmp_path, pdf_file, pptx_file):
+    for f in (pdf_file, pptx_file):
+        (tmp_path / f.name).write_bytes(f.read_bytes())
+    (tmp_path / "notes.txt").write_text("not a deck")
+    decks = load_decks(tmp_path)
+    assert sorted(d.id for d in decks) == ["lecture7", "lecture8"]
