@@ -75,19 +75,20 @@ class ClaudeLLM:
 
     prompt_version = PROMPT_VERSION
 
-    def __init__(self, model: str | None = None, client=None):
+    def __init__(self, model: str | None = None, ask_model: str | None = None, client=None):
         import anthropic  # imported lazily so tests don't need a key
 
         self.client = client or anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        self.model_id = model or settings.model
+        self.model_id = model or settings.model_writer  # writes guides; recorded with each summary
+        self.ask_model = ask_model or settings.model_ask  # answers questions
         self.usage = {"input_tokens": 0, "output_tokens": 0}
 
-    def _call(self, system: str, user: str, schema: dict, tool: str) -> dict:
+    def _call(self, model: str, system: str, user: str, schema: dict, tool: str) -> dict:
         """One request that must end in a call to `tool`. Current models reject forced tool choice
         (tool_choice "tool"/"any" is a 400), so the prompt asks for the call and the reply is checked.
         The schema stays non-strict: strict mode would forbid the free-form `VisualSpec.data` object."""
         resp = self.client.messages.create(
-            model=self.model_id,
+            model=model,
             max_tokens=WRITER_MAX_TOKENS,
             system=f"{system}\nSubmit your result by calling the {tool} tool.",
             tools=[{"name": tool, "description": "Submit the result.", "input_schema": schema}],
@@ -103,14 +104,13 @@ class ClaudeLLM:
 
     def summarize(self, deck: Deck, feedback: list[Issue]) -> Summary:
         slides = _format_slides([(deck.title, s) for s in deck.slides])
-        data = self._call(
-            SUMMARY_RULES, slides + _format_feedback(feedback), Summary.model_json_schema(), "submit_summary"
-        )
+        user = slides + _format_feedback(feedback)
+        data = self._call(self.model_id, SUMMARY_RULES, user, Summary.model_json_schema(), "submit_summary")
         return Summary.model_validate(data)
 
     def answer(self, question: str, slides: list[tuple[str, Slide]], feedback: list[Issue]) -> Answer:
         user = f"{_format_slides(slides)}\n\nQUESTION: {question}{_format_feedback(feedback)}"
-        data = self._call(ANSWER_RULES, user, Answer.model_json_schema(), "submit_answer")
+        data = self._call(self.ask_model, ANSWER_RULES, user, Answer.model_json_schema(), "submit_answer")
         return Answer.model_validate(data)
 
 
@@ -121,7 +121,7 @@ class ClaudeJudge:
         import anthropic
 
         self.client = client or anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        self.model_id = model or settings.judge_model
+        self.model_id = model or settings.model_judge
         self.usage = {"input_tokens": 0, "output_tokens": 0}
 
     def supports(self, claim: str, evidence: str) -> tuple[bool, str]:
@@ -173,4 +173,5 @@ def make_llm(cfg) -> tuple[LLM, object | None]:
     """The model and judge for these settings. Offline mode has no judge."""
     if cfg.offline:
         return ExtractiveLLM(), None
-    return ClaudeLLM(), ClaudeJudge() if cfg.use_judge else None
+    llm = ClaudeLLM(cfg.model_writer, cfg.model_ask)
+    return llm, ClaudeJudge(cfg.model_judge) if cfg.use_judge else None

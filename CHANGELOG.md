@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 ### Changed
+- One model per step: `MODEL_WRITER` (guides, Sonnet), `MODEL_ASK` (questions, now Haiku), `MODEL_JUDGE` (Haiku).
+  `HARNESS_MODEL` and `HARNESS_JUDGE_MODEL` still work.
 - Renamed the project from Lecture Harness to LazyGenius (README, package names, Docker images, UI title, docs).
 
 ### Fixed

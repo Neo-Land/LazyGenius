@@ -106,9 +106,11 @@ def test_summarize_asks_for_the_tool_and_sends_feedback(sorting_deck):
     assert llm.usage == {"input_tokens": 10, "output_tokens": 5} and llm.prompt_version == PROMPT_VERSION
 
 
-def test_answer_parses_tool_output():
-    client = _sdk(_tool_reply({"claims": [], "insufficient_evidence": True}, "submit_answer"), [])
-    assert ClaudeLLM(client=client).answer("q", [], []).insufficient_evidence
+def test_answer_parses_tool_output_and_uses_the_ask_model():
+    seen = []
+    client = _sdk(_tool_reply({"claims": [], "insufficient_evidence": True}, "submit_answer"), seen)
+    assert ClaudeLLM("writer", "asker", client=client).answer("q", [], []).insufficient_evidence
+    assert seen[0]["model"] == "asker"
 
 
 @pytest.mark.parametrize(
@@ -145,3 +147,28 @@ def test_judge_fails_closed_on_bad_output(text, stop, expected):
 def test_make_llm_offline_has_no_judge(tmp_path):
     llm, judge = make_llm(Settings(offline=True, data_dir=tmp_path))
     assert llm.model_id == "extractive-offline" and judge is None
+
+
+def test_make_llm_routes_one_model_per_step(tmp_path):
+    cfg = Settings(
+        anthropic_api_key="test", model_writer="w", model_ask="a", model_judge="j", data_dir=tmp_path
+    )
+    llm, judge = make_llm(cfg)
+    assert (llm.model_id, llm.ask_model, judge.model_id) == ("w", "a", "j")
+
+
+def test_old_model_variables_still_work(monkeypatch):
+    import importlib
+
+    import app.config as config
+
+    monkeypatch.setenv("HARNESS_MODEL", "old-writer")
+    monkeypatch.delenv("MODEL_WRITER", raising=False)
+    monkeypatch.setenv("MODEL_JUDGE", "new-judge")
+    monkeypatch.setenv("HARNESS_JUDGE_MODEL", "old-judge")
+    try:
+        cfg = importlib.reload(config).Settings()
+        assert cfg.model_writer == "old-writer" and cfg.model_judge == "new-judge"  # new name wins
+    finally:
+        monkeypatch.undo()
+        importlib.reload(config)
