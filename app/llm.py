@@ -2,14 +2,29 @@
 
 from __future__ import annotations
 
-import json
 from typing import Protocol
+
+from pydantic import BaseModel
 
 from .config import settings
 from .models import Answer, Claim, Deck, Issue, Slide, Summary
 from .retrieval import tokenize
 
-PROMPT_VERSION = "1"  # bump whenever SUMMARY_RULES, ANSWER_RULES, or the judge prompt change
+PROMPT_VERSION = "2"  # bump whenever SUMMARY_RULES, ANSWER_RULES, or the judge prompt change
+# Output caps. Thinking is on by default for current models and counts toward max_tokens, so these leave room
+# for it; a response that still hits the cap raises instead of being half-parsed.
+WRITER_MAX_TOKENS = 16000
+JUDGE_MAX_TOKENS = 2000
+JUDGE_RULES = "Decide if EVIDENCE fully supports CLAIM. Give a one-sentence reason."
+
+
+class LLMError(ValueError):
+    """The model's reply can't be used: truncated, refused, or missing the requested result."""
+
+
+class Verdict(BaseModel):
+    supported: bool
+    reason: str
 
 
 class LLM(Protocol):
@@ -45,6 +60,11 @@ def _format_feedback(feedback: list[Issue]) -> str:
     return f"\n\nFEEDBACK (previous attempt failed verification):\n{lines}"
 
 
+def _check_stop(resp) -> None:
+    if resp.stop_reason in ("max_tokens", "refusal"):
+        raise LLMError(f"model stopped early: {resp.stop_reason}")
+
+
 def _add_usage(totals: dict[str, int], resp) -> None:
     totals["input_tokens"] += resp.usage.input_tokens
     totals["output_tokens"] += resp.usage.output_tokens
@@ -63,16 +83,23 @@ class ClaudeLLM:
         self.usage = {"input_tokens": 0, "output_tokens": 0}
 
     def _call(self, system: str, user: str, schema: dict, tool: str) -> dict:
+        """One request that must end in a call to `tool`. Current models reject forced tool choice
+        (tool_choice "tool"/"any" is a 400), so the prompt asks for the call and the reply is checked.
+        The schema stays non-strict: strict mode would forbid the free-form `VisualSpec.data` object."""
         resp = self.client.messages.create(
             model=self.model_id,
-            max_tokens=4000,
-            system=system,
+            max_tokens=WRITER_MAX_TOKENS,
+            system=f"{system}\nSubmit your result by calling the {tool} tool.",
             tools=[{"name": tool, "description": "Submit the result.", "input_schema": schema}],
-            tool_choice={"type": "tool", "name": tool},
+            tool_choice={"type": "auto"},
             messages=[{"role": "user", "content": user}],
         )
         _add_usage(self.usage, resp)
-        return next(b.input for b in resp.content if b.type == "tool_use")
+        _check_stop(resp)
+        call = next((b for b in resp.content if b.type == "tool_use" and b.name == tool), None)
+        if call is None:
+            raise LLMError(f"model did not call {tool}")
+        return call.input
 
     def summarize(self, deck: Deck, feedback: list[Issue]) -> Summary:
         slides = _format_slides([(deck.title, s) for s in deck.slides])
@@ -98,19 +125,23 @@ class ClaudeJudge:
         self.usage = {"input_tokens": 0, "output_tokens": 0}
 
     def supports(self, claim: str, evidence: str) -> tuple[bool, str]:
-        resp = self.client.messages.create(
-            model=self.model_id,
-            max_tokens=300,
-            system="Decide if EVIDENCE fully supports CLAIM. Reply JSON only: "
-            '{"supported": true|false, "reason": "..."}',
-            messages=[{"role": "user", "content": f"EVIDENCE:\n{evidence}\n\nCLAIM:\n{claim}"}],
-        )
-        _add_usage(self.usage, resp)
+        """Structured output guarantees a JSON verdict even when the model thinks first. Fails closed:
+        anything but a clean "supported" verdict rejects the claim."""
         try:
-            out = json.loads(resp.content[0].text)
-            return bool(out["supported"]), out.get("reason", "")
-        except (json.JSONDecodeError, KeyError, IndexError):
+            resp = self.client.messages.parse(
+                model=self.model_id,
+                max_tokens=JUDGE_MAX_TOKENS,
+                system=JUDGE_RULES,
+                messages=[{"role": "user", "content": f"EVIDENCE:\n{evidence}\n\nCLAIM:\n{claim}"}],
+                output_format=Verdict,
+            )
+        except ValueError:  # the reply wasn't a valid Verdict
             return False, "judge returned unparseable output"
+        _add_usage(self.usage, resp)
+        verdict = resp.parsed_output
+        if resp.stop_reason != "end_turn" or verdict is None:
+            return False, f"judge gave no verdict ({resp.stop_reason})"
+        return verdict.supported, verdict.reason
 
 
 class ExtractiveLLM:

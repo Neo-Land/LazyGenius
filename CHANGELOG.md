@@ -7,6 +7,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Renamed the project from Lecture Harness to LazyGenius (README, package names, Docker images, UI title, docs).
 
 ### Fixed
+- Live calls work on current models: the writer no longer forces a tool call (a 400 on Claude Sonnet 5.5),
+  and the judge reads a structured verdict instead of the first block, which is now often a thinking block.
 - Reverted a dependency update that broke clean frontend installs. Required checks now apply to admins.
 
 ## [0.6.0] — 2026-10-31

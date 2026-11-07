@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from app import api, parsing
 from app.config import Settings
-from app.llm import PROMPT_VERSION, ClaudeJudge, ClaudeLLM, make_llm
+from app.llm import PROMPT_VERSION, ClaudeJudge, ClaudeLLM, LLMError, make_llm
 from app.models import Issue
 from app.parsing import render_images
 from app.pipeline import ingest_file
@@ -82,18 +82,24 @@ def _sdk(reply: dict, seen: list) -> anthropic.Anthropic:
     )
 
 
-def _tool_reply(data: dict) -> dict:
-    return {"content": [{"type": "tool_use", "id": "t", "name": "submit", "input": data}]}
+def _tool_reply(data: dict, name: str = "submit_summary", stop: str = "tool_use") -> dict:
+    thinking = {"type": "thinking", "thinking": "", "signature": "s"}  # current models think first
+    return {
+        "stop_reason": stop,
+        "content": [thinking, {"type": "tool_use", "id": "t", "name": name, "input": data}],
+    }
 
 
-def test_summarize_forces_the_tool_and_sends_feedback(sorting_deck):
+def test_summarize_asks_for_the_tool_and_sends_feedback(sorting_deck):
     seen = []
     client = _sdk(_tool_reply({"abstract": [{"text": "A claim.", "slides": [2]}]}), seen)
     llm = ClaudeLLM(model="writer", client=client)
     feedback = [Issue(claim="old", check="exact_fact", detail="wrong")]
     summary = llm.summarize(sorting_deck, feedback)
     assert summary.abstract[0].slides == [2]
-    assert seen[0]["model"] == "writer" and seen[0]["tool_choice"]["type"] == "tool"
+    # forced tool choice ("tool"/"any") is a 400 on current models: ask for the call instead
+    assert seen[0]["model"] == "writer" and seen[0]["tool_choice"] == {"type": "auto"}
+    assert "calling the submit_summary tool" in seen[0]["system"]
     assert (
         "FEEDBACK" in seen[0]["messages"][0]["content"] and "[slide 2 |" in seen[0]["messages"][0]["content"]
     )
@@ -101,17 +107,39 @@ def test_summarize_forces_the_tool_and_sends_feedback(sorting_deck):
 
 
 def test_answer_parses_tool_output():
-    client = _sdk(_tool_reply({"claims": [], "insufficient_evidence": True}), [])
+    client = _sdk(_tool_reply({"claims": [], "insufficient_evidence": True}, "submit_answer"), [])
     assert ClaudeLLM(client=client).answer("q", [], []).insufficient_evidence
 
 
 @pytest.mark.parametrize(
-    "text, expected",
-    [('{"supported": true, "reason": "ok"}', True), ('{"supported": false}', False), ("not json", False)],
+    "reply, error",
+    [
+        ({"content": [{"type": "text", "text": "Here is my summary..."}]}, "did not call submit_summary"),
+        (_tool_reply({"abstract": []}, stop="max_tokens"), "max_tokens"),
+        ({"stop_reason": "refusal", "content": []}, "refusal"),
+    ],
 )
-def test_judge_fails_closed_on_bad_output(text, expected):
-    client = _sdk({"content": [{"type": "text", "text": text}]}, [])
-    assert ClaudeJudge(client=client).supports("claim", "evidence")[0] is expected
+def test_unusable_writer_replies_raise(sorting_deck, reply, error):
+    with pytest.raises(LLMError, match=error):
+        ClaudeLLM(client=_sdk(reply, [])).summarize(sorting_deck, [])
+
+
+@pytest.mark.parametrize(
+    "text, stop, expected",
+    [
+        ('{"supported": true, "reason": "ok"}', "end_turn", True),
+        ('{"supported": false, "reason": "no"}', "end_turn", False),
+        ('{"supported": true}', "end_turn", False),  # missing reason: not a valid verdict
+        ("not json", "end_turn", False),
+        ('{"supported": true, "reason": "ok"}', "max_tokens", False),
+    ],
+)
+def test_judge_fails_closed_on_bad_output(text, stop, expected):
+    thinking = {"type": "thinking", "thinking": "", "signature": "s"}  # first block isn't the verdict
+    reply = {"stop_reason": stop, "content": [thinking, {"type": "text", "text": text}]}
+    seen = []
+    assert ClaudeJudge(client=_sdk(reply, seen)).supports("claim", "evidence")[0] is expected
+    assert seen[0]["output_config"]["format"]["type"] == "json_schema"
 
 
 def test_make_llm_offline_has_no_judge(tmp_path):
