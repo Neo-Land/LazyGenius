@@ -3,10 +3,14 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
+### Added
+- Retrieval eval (`python -m evals.retrieval`): 30 labeled questions, recall@1, recall@5 and MRR.
+
 ### Changed
 - Renamed the project from Lecture Harness to LazyGenius (README, package names, Docker images, UI title, docs).
 
 ### Fixed
+- Search matches word forms (Porter2 stems): "sorting" finds "sort". Recall@5 26/30 → 29/30.
 - Reverted a dependency update that broke clean frontend installs. Required checks now apply to admins.
 
 ## [0.6.0] — 2026-10-31
