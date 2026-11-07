@@ -63,6 +63,9 @@ class Num(NamedTuple):
     end: int
 
 
+Sentence = tuple[int, str]  # (slide number, normalized sentence)
+
+
 def _norm(s: str) -> str:
     """Canonical form for comparing slide text with claims: unicode, LaTeX, dashes, thousands, spacing."""
     s = re.sub("[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+", lambda m: "^" + m.group(0).translate(SUPERSCRIPTS), s)
@@ -110,38 +113,54 @@ def _context(claim: str, num: Num) -> set[str]:
     return set(before[-1:] + after[:1])
 
 
-def _number_found(num: Num, claim: str, sentences: list[str]) -> bool:
-    """A number with a unit needs that value with the same unit, or bare (a table column may hold the
-    unit), anywhere on the cited slides. A bare number needs one sentence holding both the value and
+def _number_slides(num: Num, claim: str, sentences: list[Sentence]) -> set[int]:
+    """Slides that hold this number. A number with a unit needs that value with the same unit, or bare
+    (a table column may hold the unit). A bare number needs one sentence holding both the value and
     one of its context words, so "3 recursive calls" can't borrow the 3 from "Lecture 3". A bare number
-    with no context words (a lone table cell) only needs the value somewhere."""
+    with no context words (a lone table cell) only needs the value."""
     if num.unit:
-        seen = {n.unit for s in sentences for n in _numbers(s) if n.value == num.value}
-        return num.unit in seen or None in seen
+        return {
+            slide
+            for slide, s in sentences
+            if any(n.value == num.value and n.unit in (num.unit, None) for n in _numbers(s))
+        }
     context = _context(claim, num)
-    return any(
-        any(n.value == num.value for n in _numbers(s)) and (not context or context & set(WORD.findall(s)))
-        for s in sentences
-    )
+    return {
+        slide
+        for slide, s in sentences
+        if any(n.value == num.value for n in _numbers(s)) and (not context or context & set(WORD.findall(s)))
+    }
 
 
-def _missing_facts(text: str, sentences: list[str]) -> list[str]:
-    """Facts from text absent from the cited slides' normalized sentences. Expressions compare whole,
-    so the 2 in o(n^2) never matches alone. Numbers need matching context (see _number_found), judged
-    per line of text so a visual's cells don't lend each other context. Terms match as whole words."""
-    evidence = " ".join(sentences)
-    have_exprs = {_squash(e) for e in EXPR.findall(evidence)}
-    plain = [EXPR.sub(" ", s) for s in sentences]
-    missing = []
+def _locate_facts(text: str, sentences: list[Sentence]) -> tuple[list[str], set[int]]:
+    """Facts from text missing from the cited slides, and the slides where the found facts sit.
+    Expressions compare whole, so the 2 in o(n^2) never matches alone. Numbers need matching context
+    (see _number_slides), judged per line of text so a visual's cells don't lend each other context.
+    Terms match as whole words."""
+    by_slide: dict[int, str] = {}
+    for slide, s in sentences:
+        by_slide[slide] = f"{by_slide.get(slide, '')} {s}"
+    plain = [(slide, EXPR.sub(" ", s)) for slide, s in sentences]
+    missing: list[str] = []
+    found: set[int] = set()
+
+    def place(fact: str, slides: set[int]) -> None:
+        if slides:
+            found.update(slides)
+        else:
+            missing.append(fact)
+
     for line in text.splitlines():
         claim = _norm(line)
-        missing += [e for e in EXPR.findall(claim) if _squash(e) not in have_exprs]
+        for e in EXPR.findall(claim):
+            place(e, {n for n, t in by_slide.items() if _squash(e) in map(_squash, EXPR.findall(t))})
         claim = EXPR.sub(" ", claim)
-        missing += [n.raw for n in _numbers(claim) if not _number_found(n, claim, plain)]
+        for num in _numbers(claim):
+            place(num.raw, _number_slides(num, claim, plain))
     for term in QUOTED.findall(text) + CODE.findall(text):
-        if not re.search(rf"(?<!\w){re.escape(_norm(term))}(?!\w)", evidence):
-            missing.append(term)
-    return missing
+        pattern = rf"(?<!\w){re.escape(_norm(term))}(?!\w)"
+        place(term, {n for n, t in by_slide.items() if re.search(pattern, t)})
+    return missing, found
 
 
 def _check(label: str, text: str, slides: list[int], deck: Deck, judge: Judge | None) -> list[Issue]:
@@ -154,8 +173,8 @@ def _check(label: str, text: str, slides: list[int], deck: Deck, judge: Judge | 
         return [Issue(claim=label, check="citation", detail=f"cites slide(s) with no text {blank}")]
 
     raw_evidence = "\n".join(deck.slide(n).text for n in slides)
-    sentences = [_norm(s) for n in slides for s in _sentences(deck.slide(n).text)]
-    absent = _missing_facts(text, sentences)
+    sentences = [(n, _norm(s)) for n in slides for s in _sentences(deck.slide(n).text)]
+    absent, _fact_slides = _locate_facts(text, sentences)
     if absent:
         return [Issue(claim=label, check="exact_fact", detail=f"not found on slides {slides}: {absent}")]
 
