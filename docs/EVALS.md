@@ -5,7 +5,7 @@ golden and planted sets are Claude's drafts until Neo reviews them. Don't quote 
 
 ## Results
 
-### Verifier on planted claims (offline, 2026-10-30, no judge)
+### Verifier on planted claims (offline, 2026-11-07, no judge)
 Over 5 MIT lecture decks (see `evals/SOURCES.md`).
 
 | Kind of claim | Flagged | What it means |
@@ -15,12 +15,14 @@ Over 5 MIT lecture decks (see `evals/SOURCES.md`).
 | Fact from the wrong slide | 5 / 5 | true fact, wrong citation |
 | Nonexistent slide | 3 / 3 | invented citation |
 | Wrong term or code | 6 / 6 | renamed function or term |
-| **Misplaced number** | **0 / 5** | number is on the slide, but attached to the wrong thing |
+| **Misplaced number** | **2 / 5** (was 0 / 5) | number is on the slide, but attached to the wrong thing |
 | **Unsupported paraphrase** | **0 / 6** | no checkable fact, wrong meaning |
 | True control claims (false alarms) | 0 / 18 | correct claims wrongly rejected |
 
-Overall recall is 29 / 40 (72.5%): every mechanical error and no errors of meaning. The last two kinds are
-what the AI judge is for, and whether it catches them is **unmeasured** until a live run.
+Overall recall is 31 / 40 (77.5%, was 72.5% before same-sentence matching), with no new false alarms.
+Unsupported paraphrases are what the AI judge is for, and whether it catches them is **unmeasured** until
+a live run. Still missed: swapped percentages (numbers with units skip the context check) and code results
+whose context word is generic or split onto another line.
 
 ### Full pipeline
 Offline mode only quotes slides, so it proves the pipeline runs and nothing about quality. Its 100%

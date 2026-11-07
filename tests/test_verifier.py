@@ -47,6 +47,47 @@ def test_extract_facts():
     assert extract_facts('Load factor 0.75 and "chaining" via `put()`') == ["0.75", "chaining", "put()"]
 
 
+def test_extract_facts_keeps_expressions_whole():
+    assert extract_facts("Θ(n log n) beats O(n^2) for 10 items") == ["θ(n log n)", "o(n^2)", "10"]
+
+
+@pytest.mark.parametrize(
+    "claim, slide, ok",
+    [
+        ("Lookup is O(1).", "Average lookup is O(1)", True),
+        ("Sorting is Θ(n log n).", "Sorting is Θ(nlogn)", True),  # spacing ignored
+        ("Search is O(log(n)).", "Search is O(log(n))", True),  # one level of nesting
+        ("Lookup is O(1).", "Average lookup is O(n)", False),
+        ("Sorting is Ω(n).", "Sorting is Ω(n log n)", False),
+        ("Uses 2 passes, O(n).", "O(n^2) with passes", False),  # the 2 inside o(n^2) is not a bare 2
+    ],
+)
+def test_expressions_compare_whole(claim, slide, ok):
+    assert _grounded(claim, slide) is ok
+
+
+@pytest.mark.parametrize(
+    "claim, slide, ok",
+    [
+        ("Merge sort makes 2 recursive calls.", "Uses 2 recursive calls. Lecture 3", True),
+        ("There are 3 recursive calls.", "Lecture 3\nRecursion uses calls", False),  # words on another line
+        ("There are 3 recursive calls.", "Lecture 3. Recursion uses calls", False),  # another sentence
+        ("Recursive calls: 3.", "There are 3 recursive calls", True),  # context word on either side
+        ("It took 2 seconds.", "Time: 2 sec", True),  # a unit is context enough
+        ("The answer is 7.", "Lecture 7", False),  # "answer" is context, and it isn't there
+        ("It is 7.", "Lecture 7", True),  # only stopwords around 7: value anywhere (the fallback)
+    ],
+)
+def test_bare_numbers_need_context_from_the_same_sentence(claim, slide, ok):
+    assert _grounded(claim, slide) is ok
+
+
+def test_visual_cells_do_not_lend_each_other_context():
+    deck = _deck("Uses 2 recursive calls")
+    table = _table([["Merge sort", "2"]])  # the lone 2 has no context words of its own
+    assert verify_summary(Summary(abstract=[], visuals=[table]), deck).passed
+
+
 def _deck(*texts):
     return Deck(
         id="x", course="c", title="t", slides=[Slide(number=i + 1, text=t) for i, t in enumerate(texts)]
@@ -133,3 +174,40 @@ def test_judge_also_reviews_visual_contents():
 def test_citing_a_blank_slide_fails():
     deck = _deck("", "Real text")
     assert check_claim(Claim(text="A claim with no facts.", slides=[1]), deck)[0].check == "citation"
+
+
+# Phase 1 review cases (docs/BUILD_PLAN.md). No judge: the deterministic layers alone should catch them.
+# xfail(strict=True) keeps CI green until the fix lands, then forces removing the marker.
+REVIEW_DECK = _deck(
+    "Merge sort: worst case O(n log n). Uses 2 recursive calls. Lecture 3",
+    "Quicksort worst case O(n^2) when pivot is bad",
+    "Binary search requires a sorted list",
+)
+
+
+def _known_miss(claim, slide, why, name):
+    return pytest.param(claim, slide, marks=pytest.mark.xfail(strict=True, reason=why), id=name)
+
+
+@pytest.mark.parametrize(
+    "claim, slide",
+    [
+        pytest.param("Merge sort's worst case is O(n^2).", 1, id="exponent"),
+        pytest.param("Merge sort makes 3 recursive calls.", 1, id="lecture-number"),
+        _known_miss("Quicksort's worst case is O(n log n).", 1, "names unchecked", "swapped-name"),
+        _known_miss("Binary search does not require a sorted list.", 3, "negation ignored", "negation"),
+    ],
+)
+def test_review_cases_are_caught(claim, slide):
+    assert check_claim(Claim(text=claim, slides=[slide]), REVIEW_DECK)
+
+
+@pytest.mark.xfail(strict=True, reason="names unchecked: O(n^2) is on cited slide 2, but for Quicksort")
+def test_fact_from_another_cited_slide_does_not_ground_a_swapped_name():
+    # Same-sentence matching alone passes this; checking "Merge sort" on the fact's slide catches it.
+    claim = Claim(text="Merge sort's worst case is O(n^2).", slides=[1, 2])
+    assert check_claim(claim, REVIEW_DECK)
+
+
+def test_review_control_claim_passes():
+    assert check_claim(Claim(text="Merge sort's worst case is O(n log n).", slides=[1]), REVIEW_DECK) == []
