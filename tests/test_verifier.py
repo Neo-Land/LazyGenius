@@ -38,9 +38,14 @@ def test_number_formatting_is_normalized(sorting_deck):
 
 def test_judge_catches_unsupported_paraphrase(sorting_deck):
     claim = Claim(text="Quick sort is always faster than merge sort.", slides=[3])
-    assert check_claim(claim, sorting_deck) == []  # no facts to string-match
     issues = check_claim(claim, sorting_deck, FakeJudge("always faster"))
     assert issues[0].check == "judge"
+
+
+def test_claim_with_no_facts_needs_the_judge(sorting_deck):
+    claim = Claim(text="Quick sort is always faster than merge sort.", slides=[3])
+    assert check_claim(claim, sorting_deck)[0].check == "judge"  # no judge, nothing checkable: dropped
+    assert check_claim(claim, sorting_deck, FakeJudge("never matches")) == []  # the judge accepts it
 
 
 def test_extract_facts():
@@ -115,7 +120,7 @@ def _grounded(claim: str, *slides: str) -> bool:
         ("The low was -5 degrees.", "Low: −5 degrees"),
         ("Use the “file” mode.", "Use the ﬁle mode"),
         ("Latency was 5 ms.", "Latency (ms) | 5"),
-        ("In CS2 we cover trees.", "Trees"),
+        ("In CS2 we cover 3 trees.", "3 trees"),  # the 2 in CS2 is not a number
     ],
 )
 def test_equivalent_forms_pass(claim, slide):
@@ -195,7 +200,7 @@ def _known_miss(claim, slide, why, name):
         pytest.param("Merge sort's worst case is O(n^2).", 1, id="exponent"),
         pytest.param("Merge sort makes 3 recursive calls.", 1, id="lecture-number"),
         pytest.param("Quicksort's worst case is O(n log n).", 1, id="swapped-name"),
-        _known_miss("Binary search does not require a sorted list.", 3, "negation ignored", "negation"),
+        pytest.param("Binary search does not require a sorted list.", 3, id="negation"),
     ],
 )
 def test_review_cases_are_caught(claim, slide):
@@ -253,8 +258,9 @@ NAMES_DECK = _deck(
     ],
 )
 def test_rare_names_need_an_anchor_on_the_facts_slide(deck, claim, slides, ok):
-    """Anchor rule: a claim with rare deck terms passes if at least one of them is on a fact slide."""
-    assert (check_claim(Claim(text=claim, slides=slides), deck) == []) is ok
+    """Anchor rule: a claim with rare deck terms passes if at least one of them is on a fact slide.
+    An accept-everything judge isolates the name check from step 3's no-judge rule."""
+    assert (check_claim(Claim(text=claim, slides=slides), deck, FakeJudge()) == []) is ok
 
 
 def test_visuals_skip_the_name_check():
@@ -263,3 +269,47 @@ def test_visuals_skip_the_name_check():
         kind="table", title="Times", data={"columns": ["Time"], "rows": [["0.42 s"]]}, slides=[1]
     )
     assert verify_summary(Summary(abstract=[], visuals=[table]), deck).passed  # "time" is only on slide 2
+
+
+# Step 3: with no judge, a claim with nothing checkable, or one that flips a negation, passes only as a
+# near-verbatim quote of a cited sentence (same words in the same order, same negation).
+QUOTE_DECK = _deck(
+    "Binary search requires a sorted list",
+    "Strings are not mutable. Lists can hold 3 types",
+)
+
+
+@pytest.mark.parametrize(
+    "claim, slide, ok",
+    [
+        ("Binary search requires a sorted list.", 1, True),  # verbatim
+        ("Binary search requires the list to be sorted.", 1, False),  # a paraphrase needs the judge
+        ("A sorted list requires binary search.", 1, False),  # same words, different order
+        ("Strings are not mutable.", 2, True),
+        ("Strings are mutable.", 2, False),  # dropped the slide's negation
+        ("Strings aren't mutable.", 2, False),  # a contraction isn't verbatim: the judge decides
+        ("Lists can hold 3 types.", 2, True),  # has a fact, same polarity: no judge needed
+        ("Lists cannot hold 3 types.", 2, False),  # has a fact, but flips the negation
+    ],
+)
+def test_without_a_judge_only_quotes_pass_unchecked_meaning(claim, slide, ok):
+    assert (check_claim(Claim(text=claim, slides=[slide]), QUOTE_DECK) == []) is ok
+
+
+def test_negation_flips_go_to_the_judge_when_there_is_one():
+    claim = Claim(text="Lists cannot hold 3 types.", slides=[2])
+    assert check_claim(claim, QUOTE_DECK, FakeJudge("cannot"))[0].check == "judge"
+    assert check_claim(claim, QUOTE_DECK, FakeJudge("never matches")) == []
+
+
+def test_visual_without_facts_must_quote_its_slide_when_there_is_no_judge():
+    deck = _deck("Merge sort\nDivide and conquer")
+    quoted = VisualSpec(kind="table", title="Merge sort", data={"rows": [["Divide and conquer"]]}, slides=[1])
+    invented = VisualSpec(kind="table", title="Merge sort", data={"rows": [["Fastest ever"]]}, slides=[1])
+    assert verify_summary(Summary(abstract=[], visuals=[quoted]), deck).passed
+    assert not verify_summary(Summary(abstract=[], visuals=[invented]), deck).passed
+
+
+def test_a_tie_for_closest_sentence_is_not_a_negation_flip():
+    deck = _deck("sorted(L) returns a sorted list, does not mutate L\nL.sort()\nmutates L")
+    assert check_claim(Claim(text="`L.sort()` mutates the list.", slides=[1]), deck) == []

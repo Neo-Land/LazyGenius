@@ -5,25 +5,30 @@ golden and planted sets are Claude's drafts until Neo reviews them. Don't quote 
 
 ## Results
 
-### Verifier on planted claims (offline, 2026-11-07, no judge)
-Over 5 MIT lecture decks (see `evals/SOURCES.md`).
+### Verifier on planted claims (offline, 2026-11-07)
+Over 5 MIT lecture decks (see `evals/SOURCES.md`). Two modes: **deterministic layers** alone (a judge
+that accepts everything, so only citation and exact-fact checks can reject), and **no judge**, the strict
+offline mode where a claim with nothing checkable, or one that flips its slide's negation, must be a
+near-verbatim quote or it is dropped.
 
-| Kind of claim | Flagged | What it means |
-|---|---|---|
-| Wrong number | 12 / 12 | number isn't on the cited slide |
-| Digit fragment | 3 / 3 | `4` when the slide says `40` |
-| Fact from the wrong slide | 5 / 5 | true fact, wrong citation |
-| Nonexistent slide | 3 / 3 | invented citation |
-| Wrong term or code | 6 / 6 | renamed function or term |
-| **Misplaced number** | **2 / 5** (was 0 / 5) | number is on the slide, but attached to the wrong thing |
-| **Unsupported paraphrase** | **1 / 6** (was 0 / 6) | no checkable fact, wrong meaning |
-| True control claims (false alarms) | 0 / 18 | correct claims wrongly rejected |
+| Kind of claim | Deterministic layers | No judge | What it means |
+|---|---|---|---|
+| Wrong number | 12 / 12 | 12 / 12 | number isn't on the cited slide |
+| Digit fragment | 3 / 3 | 3 / 3 | `4` when the slide says `40` |
+| Fact from the wrong slide | 5 / 5 | 5 / 5 | true fact, wrong citation |
+| Nonexistent slide | 3 / 3 | 3 / 3 | invented citation |
+| Wrong term or code | 6 / 6 | 6 / 6 | renamed function or term |
+| Misplaced number | 2 / 5 | 2 / 5 | number is on the slide, but attached to the wrong thing |
+| Unsupported paraphrase | 1 / 6 | 6 / 6 | no checkable fact, wrong meaning |
+| **Errors caught** | **32 / 40** | **37 / 40** | 29 / 40 before Phase 1 |
+| True controls rejected | 0 / 18 | 2 / 18 | correct claims dropped |
 
-Overall recall is 32 / 40 (80%; 72.5% before Phase 1), with no new false alarms. Same-sentence matching
-added 2 misplaced numbers; the name check added 1 paraphrase whose rare terms aren't on its cited slide.
-Unsupported paraphrases are what the AI judge is for, and whether it catches them is **unmeasured** until
-a live run. Still missed: swapped percentages (numbers with units skip the context check) and code results
-whose context word is generic or split onto another line.
+The deterministic layers add no false alarms. The 2 controls dropped with no judge ("break exits only the
+innermost loop", "Bisection converges on the order of log2N steps") have nothing checkable and aren't
+quotes, so without a judge they can't be verified: that's the cost of "verified or dropped". Whether the
+real judge accepts them and catches the paraphrases is **unmeasured** until a live run. Still missed:
+swapped percentages (numbers with units skip the context check) and code results whose context word is
+generic or split onto another line.
 
 The name check was tuned here: "a rare deck term must be on the fact's slide" caught 36 / 40 but raised
 false alarms to 5 / 18 (plain words like "example" sit on few slides), so it only fires when *none* of a

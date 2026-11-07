@@ -10,7 +10,7 @@ from app.llm import ExtractiveLLM
 from app.models import Claim
 from evals import decks as eval_decks
 from evals.run import captured, run, score_planted, spent
-from tests.conftest import GOOD_SUMMARY, HALLUCINATED_SUMMARY, FakeLLM
+from tests.conftest import GOOD_SUMMARY, HALLUCINATED_SUMMARY, FakeJudge, FakeLLM
 
 EVALS = Path(eval_decks.__file__).parent
 GOLDEN = {
@@ -56,7 +56,7 @@ def test_captured_needs_a_cited_slide_and_every_keyword():
 
 
 def test_planted_scores_recall_and_false_alarms(sorting_deck):
-    score = score_planted(PLANTED, {"d1": sorting_deck})
+    score = score_planted(PLANTED, {"d1": sorting_deck}, FakeJudge())  # judge accepts all: one miss
     assert score["errors_caught"] == 1 and score["errors_total"] == 2 and score["recall"] == 0.5
     assert score["false_alarms"] == 0 and score["controls_total"] == 1
     assert score["wrong_verdicts"][0]["text"] == "Merge sort is best."

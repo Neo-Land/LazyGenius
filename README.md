@@ -92,6 +92,7 @@ app/
   models.py     pydantic shapes (Slide, Deck, Claim, VisualSpec, Summary, Answer)
   parsing.py    PDF / PPTX -> numbered slides (incl. speaker notes and tables)
   verifier.py   citation, exact-fact, and judge checks
+  facts.py      deterministic fact matching the verifier uses (numbers, expressions, names)
   llm.py        Claude via forced tool calls (always-valid JSON) + LLM judge
   harness.py    generate -> verify -> revise loop; question answering over retrieved slides
   retrieval.py  BM25 keyword search across a course's slides
