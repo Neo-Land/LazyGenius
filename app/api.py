@@ -102,7 +102,7 @@ class AskResponse(BaseModel):
 
 
 def create_app(store: Store, llm, judge=None, canvas=None) -> FastAPI:
-    app = FastAPI(title="Lecture Harness")
+    app = FastAPI(title="LazyGenius")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[o.strip() for o in settings.cors_origins.split(",")],

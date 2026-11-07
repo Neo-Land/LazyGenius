@@ -8,7 +8,7 @@ school email, or your Drive. It only needs the repo and a GitHub token scoped to
 
 | Access | Give it? | How | Why |
 |---|---|---|---|
-| The project folder | Yes | Run `claude` from inside `lecture-harness/` | It works only in this folder |
+| The project folder | Yes | Run `claude` from inside `LazyGenius/` | It works only in this folder |
 | GitHub (this repo only) | Yes | Fine-grained token, one repo (below) | Push branches, open PRs |
 | Anthropic API key | No (default) | Lives in `.env`, which Claude Code is denied | Tests run offline with a fake model. You run live tests yourself |
 | Canvas token | Never | Lives in `.env` only | It can read all your courses and grades |
@@ -20,7 +20,7 @@ school email, or your Drive. It only needs the repo and a GitHub token scoped to
 
 ### 1. Local repo
 ```bash
-unzip lecture-harness.zip && cd lecture-harness
+unzip LazyGenius.zip && cd LazyGenius
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt -r requirements-dev.txt
 pytest                                                   # should be all green
@@ -28,8 +28,8 @@ git init -b main && git add . && git commit -m "chore: initial scaffold"
 ```
 
 ### 2. GitHub repo (you do this, not Claude Code)
-1. Create an empty repo `lecture-harness` (public is fine; no real slides are ever committed).
-2. `git remote add origin git@github.com:<you>/lecture-harness.git && git push -u origin main`
+1. Create an empty repo `LazyGenius` (public is fine; no real slides are ever committed).
+2. `git remote add origin git@github.com:<you>/LazyGenius.git && git push -u origin main`
 3. **Branch protection** on `main` (Settings → Branches → Add rule):
    - Require a pull request before merging
    - Require status checks to pass: `backend (3.11)`, `backend (3.13)`, `frontend`, and `images`
@@ -39,7 +39,7 @@ git init -b main && git add . && git commit -m "chore: initial scaffold"
 
 ### 3. A GitHub token scoped to this repo only
 GitHub → Settings → Developer settings → Fine-grained tokens → Generate:
-- Repository access: **Only select repositories → lecture-harness**
+- Repository access: **Only select repositories → LazyGenius**
 - Permissions: Contents **Read & write**, Pull requests **Read & write**,
   Workflows **Read & write** (needed to edit `.github/workflows`), Actions **Read**, Metadata **Read**
 - Expiration: 30–60 days
@@ -64,7 +64,7 @@ on approval mode: **read every command before approving it**, and decline anythi
 
 ## Each session
 ```bash
-cd lecture-harness && source .venv/bin/activate && git checkout main && git pull
+cd LazyGenius && source .venv/bin/activate && git checkout main && git pull
 claude
 ```
 Kickoff prompt: *"Read CLAUDE.md and docs/PROJECT_PLAN.md. Tell me the current phase and the

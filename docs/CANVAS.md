@@ -8,7 +8,7 @@ password. It belongs only in `.env`.
 1. Log in to Canvas and click **Account**, then **Settings**.
 2. Under **Approved Integrations**, click **New Access Token**. If that button is missing, your school has
    turned tokens off. Upload files by hand instead.
-3. For **Purpose**, enter `Lecture Harness`. Set an **Expires** date, such as the end of the semester.
+3. For **Purpose**, enter `LazyGenius`. Set an **Expires** date, such as the end of the semester.
 4. Click **Generate Token** and copy it. Canvas only shows it once.
 5. In `.env`, set:
    ```
@@ -41,7 +41,7 @@ In Canvas, go to **Account**, then **Settings**, find the token under **Approved
 Only on your own machine, never in public CI. To sync weekdays at 7am, run `crontab -e` and add this line,
 using your own path:
 ```
-0 7 * * 1-5 cd /path/to/lecture-harness && set -a && . ./.env && set +a && .venv/bin/python -m app sync
+0 7 * * 1-5 cd /path/to/LazyGenius && set -a && . ./.env && set +a && .venv/bin/python -m app sync
 ```
 On a Mac, cron may need **Full Disk Access** in **System Settings**, then **Privacy & Security**. Each run
 with the real model can cost money, so check your spend limit first.

@@ -1,6 +1,6 @@
-# Lecture Harness
+# LazyGenius
 
-[![CI](https://github.com/Neo-Land/lecture-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/Neo-Land/lecture-harness/actions/workflows/ci.yml)
+[![CI](https://github.com/Neo-Land/LazyGenius/actions/workflows/ci.yml/badge.svg)](https://github.com/Neo-Land/LazyGenius/actions/workflows/ci.yml)
 
 Lecture notes where every claim is checked against the slide it cites. An AI writes the notes, plain code
 fact-checks each one, and anything that still fails is deleted before you see it.
@@ -24,7 +24,8 @@ flowchart LR
 
 ## Results so far
 
-Offline run over 5 MIT lectures, with draft test sets. **The real model hasn't been run yet.**
+Offline run over 5 MIT lectures. **The real model hasn't been run yet, and the eval sets are unreviewed
+drafts until Phase 7** (hand-labeled claims), so treat these numbers as provisional.
 
 | Verifier without the AI judge | Caught |
 |---|---|

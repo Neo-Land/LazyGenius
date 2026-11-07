@@ -7,7 +7,7 @@ const display = Familjen_Grotesk({ subsets: ["latin"], variable: "--font-display
 const reading = Literata({ subsets: ["latin"], variable: "--font-reading" });
 
 export const metadata: Metadata = {
-  title: "Lecture Harness",
+  title: "LazyGenius",
   description: "Lecture notes where every claim is checked against the slide it cites.",
 };
 

@@ -3,6 +3,9 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
+### Changed
+- Renamed the project from Lecture Harness to LazyGenius (README, package names, Docker images, UI title, docs).
+
 ### Fixed
 - Reverted a dependency update that broke clean frontend installs. Required checks now apply to admins.
 

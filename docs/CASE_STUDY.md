@@ -1,4 +1,4 @@
-# Case study: Lecture Harness
+# Case study: LazyGenius
 
 ## Problem
 AI summaries of lecture slides can invent numbers or cite the wrong slide, and a student has no quick way to

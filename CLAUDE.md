@@ -3,41 +3,29 @@
 Claude Code reads this file at the start of every session. Follow it on every task.
 
 ## What this project is
-Lecture Harness: an agent harness that syncs lecture slides from an LMS, writes verified
-abstracts + structured visuals, and answers per-course questions with slide citations.
+LazyGenius: turns "here's what the prof said is on the exam" into a checked study guide built
+only from that course's slides, plus a report of what the slides do and don't cover.
 Accuracy is the product: **no claim reaches the user unless the verifier passes it.**
 
-- Plan and current phase: `docs/PROJECT_PLAN.md` (read it first; work only on the current phase)
+- Plan and current phase: `docs/BUILD_PLAN.md` (read it first; work only on the current phase)
 - Architecture: `docs/ARCHITECTURE.md`
 - Decisions: `docs/decisions/`
-- Access & safety setup: `docs/SETUP_ACCESS.md`
+- `docs/PROJECT_PLAN.md` is the old, superseded plan. Don't work from it.
 
-## Workflow (every task)
-1. Read `docs/PROJECT_PLAN.md`, find the current phase and its next unchecked task.
-2. Create a branch from up-to-date `main`: `feat/<phase>-<short-name>`, `fix/...`, `docs/...`, `ci/...`.
-3. Write or update tests **first** when changing behavior.
-4. Make small commits (one logical change each) using Conventional Commits:
-   `feat:`, `fix:`, `test:`, `docs:`, `ci:`, `refactor:`, `chore:`.
-5. Before every push run locally and make sure all pass:
-   - `ruff check . && ruff format --check .`
-   - `pytest --cov=app --cov-fail-under=85`
-   - (once `web/` exists) `cd web && npm run lint && npm run typecheck && npm test && npm run build`
-6. Push the branch and open a PR with `gh pr create` using the PR template. Push at least at
-   the end of each task, so a phase produces several pushes and one or more PRs.
-7. **Never push to `main`.** Merge your own PR with `gh pr merge --squash --delete-branch` once all
-   every required check has passed, per Neo's decision on 2026-10-30. Confirm that first: never merge
-   after a failed or missing check. Neo reviews afterwards and can revert.
-8. Tick the task in `docs/PROJECT_PLAN.md` in the same PR that completes it.
+## How we work (Neo's rules)
+- Main focus: a working product with clear, readable code. No extra features or polish until asked.
+- Neo writes core logic: verifier, retrieval, topic mapping, coverage, caching. For these, review and suggest; do not write the implementation unless Neo asks for a specific piece.
+- You may write plumbing (routes, UI, config, CI, fixtures).
+- Start every task by explaining the plan and the tradeoffs. Wait for approval before editing.
+- Commit steadily: one small concern per commit (aim under ~200 changed lines), only when the code is concise, correct and tests pass. Show Neo the diff and a draft message; commit only after he approves. Never merge PRs.
+- Document as you go: update README, docs/ or CHANGELOG in the same commit, a few lines at most. No standalone doc rewrites.
+- Every change ships with tests. Report eval numbers when retrieval, verification or mapping changes.
+- Never let the model read Canvas or decide which files to fetch; plain code does that.
+- Canvas: only the allowlisted read-only endpoints in docs/BUILD_PLAN.md (Data boundaries). Never touch grades, submissions, enrollments or users. Never read .env.
+- Never send slide images to a model unless the slide has no text.
 
-## Documentation is part of "done"
-A PR is not complete unless it updates every doc it affects:
-- `CHANGELOG.md` — add a line under `## [Unreleased]` for every user-visible change.
-- `docs/ARCHITECTURE.md` — when modules, data flow, or endpoints change.
-- `README.md` — when setup, commands, or endpoints change.
-- `docs/decisions/NNNN-title.md` — an ADR (use `0000-template.md`) for any non-obvious choice:
-  new dependency, storage/model choice, retrieval method, deployment target.
-- Docstrings on every public function/class; module docstring at the top of every file.
-- `docs/EVALS.md` — whenever eval numbers change (Phase 3+).
+Before pushing, run: `ruff check . && ruff format --check .`, `pytest --cov=app --cov-fail-under=85`,
+and for `web/` changes `cd web && npm run lint && npm run typecheck && npm test && npm run build`.
 
 ## Code standards
 - Python 3.11+, type hints everywhere, pydantic models for data crossing boundaries.
