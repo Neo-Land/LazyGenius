@@ -52,6 +52,7 @@ Questions with no supporting slides return `insufficient_evidence: true` instead
 python -m app ingest lecture7.pdf --course "CS 2"
 python -m app ask "What is merge sort's worst case?" --course "CS 2"
 python -m app sync      # pull new lectures from Canvas; see docs/CANVAS.md
+python -m app cost      # estimated model spend by step, last 7 days (--days N)
 ```
 
 Add `--offline` (or set `HARNESS_OFFLINE=true`) to run with no API key. Offline mode is not AI: it only

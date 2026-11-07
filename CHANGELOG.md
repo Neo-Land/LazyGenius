@@ -3,6 +3,9 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
+### Added
+- Every model call records its token counts; `python -m app cost` prints estimated spend by step and model.
+
 ### Changed
 - One model per step: `MODEL_WRITER` (guides, Sonnet), `MODEL_ASK` (questions, now Haiku), `MODEL_JUDGE` (Haiku).
   `HARNESS_MODEL` and `HARNESS_JUDGE_MODEL` still work.
