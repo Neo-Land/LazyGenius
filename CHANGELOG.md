@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 - Reverted a dependency update that broke clean frontend installs. Required checks now apply to admins.
+- Verifier compares expressions like `O(n^2)` whole, so the 2 can't match an unrelated 2 on the slide.
 
 ## [0.6.0] — 2026-10-31
 ### Added

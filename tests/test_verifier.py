@@ -47,6 +47,25 @@ def test_extract_facts():
     assert extract_facts('Load factor 0.75 and "chaining" via `put()`') == ["0.75", "chaining", "put()"]
 
 
+def test_extract_facts_keeps_expressions_whole():
+    assert extract_facts("Θ(n log n) beats O(n^2) for 10 items") == ["θ(n log n)", "o(n^2)", "10"]
+
+
+@pytest.mark.parametrize(
+    "claim, slide, ok",
+    [
+        ("Lookup is O(1).", "Average lookup is O(1)", True),
+        ("Sorting is Θ(n log n).", "Sorting is Θ(nlogn)", True),  # spacing ignored
+        ("Search is O(log(n)).", "Search is O(log(n))", True),  # one level of nesting
+        ("Lookup is O(1).", "Average lookup is O(n)", False),
+        ("Sorting is Ω(n).", "Sorting is Ω(n log n)", False),
+        ("Uses 2 passes, O(n).", "O(n^2) with passes", False),  # the 2 inside o(n^2) is not a bare 2
+    ],
+)
+def test_expressions_compare_whole(claim, slide, ok):
+    assert _grounded(claim, slide) is ok
+
+
 def _deck(*texts):
     return Deck(
         id="x", course="c", title="t", slides=[Slide(number=i + 1, text=t) for i, t in enumerate(texts)]
@@ -151,7 +170,7 @@ def _known_miss(claim, slide, why, name):
 @pytest.mark.parametrize(
     "claim, slide",
     [
-        _known_miss("Merge sort's worst case is O(n^2).", 1, "2 matches '2 recursive calls'", "exponent"),
+        pytest.param("Merge sort's worst case is O(n^2).", 1, id="exponent"),
         _known_miss("Merge sort makes 3 recursive calls.", 1, "3 matches 'Lecture 3'", "lecture-number"),
         _known_miss("Quicksort's worst case is O(n log n).", 1, "names unchecked", "swapped-name"),
         _known_miss("Binary search does not require a sorted list.", 3, "negation ignored", "negation"),

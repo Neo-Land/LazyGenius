@@ -38,6 +38,8 @@ UNIT_ALIASES = {
 }
 QUOTED = re.compile(r"[\"“]([^\"”]{2,60})[\"”]")
 CODE = re.compile(r"`([^`]{1,60})`")
+# Asymptotic notation such as o(n^2) or θ(n log n), one level of nested parentheses, on normalized text.
+EXPR = re.compile(r"(?<!\w)[oθω]\((?:[^()]|\([^()]*\))*\)")
 SUPERSCRIPTS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻", "0123456789-")
 DASHES = re.compile("[‐‑‒–—−]")
 
@@ -67,18 +69,28 @@ def _numbers(normed: str) -> list[tuple[Decimal, str | None, str]]:
     return out
 
 
+def _squash(expr: str) -> str:
+    """Compare expressions without spacing: o(n log n) == o(nlogn)."""
+    return expr.replace(" ", "")
+
+
 def extract_facts(text: str) -> list[str]:
-    """Things that must appear in the source: numbers, "quoted" phrases, `code`."""
-    return [n[2] for n in _numbers(_norm(text))] + QUOTED.findall(text) + CODE.findall(text)
+    """Things that must appear in the source: expressions, numbers outside them, "quoted" phrases, `code`."""
+    normed = _norm(text)
+    numbers = [n[2] for n in _numbers(EXPR.sub(" ", normed))]
+    return EXPR.findall(normed) + numbers + QUOTED.findall(text) + CODE.findall(text)
 
 
 def _missing_facts(text: str, evidence: str) -> list[str]:
-    """Facts from text absent from normalized evidence. Numbers compare by value, terms as whole words.
+    """Facts from text absent from normalized evidence. Expressions compare whole, so the 2 in o(n^2)
+    is never matched alone. Numbers compare by value, terms as whole words.
     A number with a unit passes if the slide has it bare (a table column may hold the unit), but not
     if the slide only has it with a different unit."""
-    have = _numbers(evidence)
-    missing = []
-    for value, unit, raw in _numbers(_norm(text)):
+    claim = _norm(text)
+    have_exprs = {_squash(e) for e in EXPR.findall(evidence)}
+    missing = [e for e in EXPR.findall(claim) if _squash(e) not in have_exprs]
+    have = _numbers(EXPR.sub(" ", evidence))
+    for value, unit, raw in _numbers(EXPR.sub(" ", claim)):
         units = {u for v, u, _ in have if v == value}
         if not units or (unit and unit not in units and None not in units):
             missing.append(raw)
