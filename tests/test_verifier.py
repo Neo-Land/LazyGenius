@@ -194,7 +194,7 @@ def _known_miss(claim, slide, why, name):
     [
         pytest.param("Merge sort's worst case is O(n^2).", 1, id="exponent"),
         pytest.param("Merge sort makes 3 recursive calls.", 1, id="lecture-number"),
-        _known_miss("Quicksort's worst case is O(n log n).", 1, "names unchecked", "swapped-name"),
+        pytest.param("Quicksort's worst case is O(n log n).", 1, id="swapped-name"),
         _known_miss("Binary search does not require a sorted list.", 3, "negation ignored", "negation"),
     ],
 )
@@ -202,7 +202,6 @@ def test_review_cases_are_caught(claim, slide):
     assert check_claim(Claim(text=claim, slides=[slide]), REVIEW_DECK)
 
 
-@pytest.mark.xfail(strict=True, reason="names unchecked: O(n^2) is on cited slide 2, but for Quicksort")
 def test_fact_from_another_cited_slide_does_not_ground_a_swapped_name():
     # Same-sentence matching alone passes this; checking "Merge sort" on the fact's slide catches it.
     claim = Claim(text="Merge sort's worst case is O(n^2).", slides=[1, 2])
@@ -211,3 +210,56 @@ def test_fact_from_another_cited_slide_does_not_ground_a_swapped_name():
 
 def test_review_control_claim_passes():
     assert check_claim(Claim(text="Merge sort's worst case is O(n log n).", slides=[1]), REVIEW_DECK) == []
+
+
+# Step 2: a term only a few slides use (a "name") must be on a slide that holds the claim's facts.
+NAMES_DECK = _deck(
+    "Merge Sort\nDivide and conquer\nRuns in O(n log n) time",
+    "Quick Sort\nWorst case O(n^2) when the pivot is bad",
+    "Binary search requires a sorted list",
+    "Sorting overview",
+)
+
+
+@pytest.mark.parametrize(
+    "deck, claim, slides, ok",
+    [
+        (NAMES_DECK, "Merge sort runs in O(n log n) time.", [1], True),
+        (NAMES_DECK, "Quicksort's worst case is O(n^2).", [2], True),  # slide says "Quick Sort"
+        (REVIEW_DECK, "Quick sort's worst case is O(n^2).", [2], True),  # slide says "Quicksort"
+        (NAMES_DECK, "Quick sort is O(n log n).", [1], False),
+        (NAMES_DECK, "Merge sort is O(n^2).", [1, 2], False),  # name on a cited slide, but not the fact's
+        (NAMES_DECK, "Quick sort divides and conquers.", [1], False),  # no facts: checked on cited slides
+        (NAMES_DECK, "Merge sort and quick sort are covered.", [1, 2], True),
+        (NAMES_DECK, "Like binary search, merge sort runs in O(n log n) time.", [1], True),  # anchored
+        pytest.param(
+            NAMES_DECK,
+            "Quick sort runs in O(n log n) time.",
+            [1],
+            False,
+            marks=pytest.mark.xfail(strict=True, reason="'runs ... time' is rare and on slide 1: anchored"),
+        ),
+    ],
+    ids=[
+        "guard",
+        "variant-joined",
+        "variant-split",
+        "swapped",
+        "fact-slide",
+        "no-facts",
+        "both-cited",
+        "anchored",
+        "anchored-by-a-common-phrase",
+    ],
+)
+def test_rare_names_need_an_anchor_on_the_facts_slide(deck, claim, slides, ok):
+    """Anchor rule: a claim with rare deck terms passes if at least one of them is on a fact slide."""
+    assert (check_claim(Claim(text=claim, slides=slides), deck) == []) is ok
+
+
+def test_visuals_skip_the_name_check():
+    deck = _deck("Merge sort took 0.42 seconds", "Run time grows with n")
+    table = VisualSpec(
+        kind="table", title="Times", data={"columns": ["Time"], "rows": [["0.42 s"]]}, slides=[1]
+    )
+    assert verify_summary(Summary(abstract=[], visuals=[table]), deck).passed  # "time" is only on slide 2
