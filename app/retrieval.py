@@ -1,11 +1,13 @@
-"""Keyword (BM25) search over a course's slides. No vector DB needed to start;
-swap in embeddings later and compare retrieval quality in the eval suite."""
+"""Keyword (BM25) search over a course's slides, on word stems so "sorting" finds "sort". No vector DB
+needed to start; swap in embeddings later and compare retrieval quality with python -m evals.retrieval."""
 
 from __future__ import annotations
 
 import math
 import re
 from collections import Counter
+
+from snowballstemmer import stemmer
 
 from .models import Deck, Slide
 
@@ -39,10 +41,16 @@ def tokenize(text: str) -> list[str]:
     return [t for t in TOKEN.findall(text.lower()) if t not in STOP]
 
 
+def stems(text: str) -> list[str]:
+    """Tokens reduced to their Porter2 stems: "returning" and "return" both become "return".
+    A fresh stemmer per call, because stemmer objects aren't thread-safe and building one is cheap."""
+    return stemmer("english").stemWords(tokenize(text))
+
+
 def search(
     decks: list[Deck], query: str, k: int = 6, k1: float = 1.5, b: float = 0.75
 ) -> list[tuple[Deck, Slide, float]]:
-    docs = [(d, s, tokenize(s.text)) for d in decks for s in d.slides]
+    docs = [(d, s, stems(s.text)) for d in decks for s in d.slides]
     if not docs:
         return []
     avg_len = sum(len(t) for *_, t in docs) / len(docs) or 1
@@ -53,7 +61,7 @@ def search(
     for deck, slide, toks in docs:
         tf = Counter(toks)
         score = 0.0
-        for q in set(tokenize(query)):
+        for q in set(stems(query)):
             if q not in tf:
                 continue
             idf = math.log(1 + (n - df[q] + 0.5) / (df[q] + 0.5))

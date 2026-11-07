@@ -22,6 +22,23 @@ Over 5 MIT lecture decks (see `evals/SOURCES.md`).
 Overall recall is 29 / 40 (72.5%): every mechanical error and no errors of meaning. The last two kinds are
 what the AI judge is for, and whether it catches them is **unmeasured** until a live run.
 
+### Retrieval (offline, 2026-11-07)
+30 student-style questions over the 5 MIT decks (`evals/retrieval.toml`, Claude's unreviewed draft), each
+labeled with the slides that answer it. Search runs over all 5 decks at once, as it would over a course.
+
+| Search | Recall@1 | Recall@5 | MRR |
+|---|---|---|---|
+| BM25, exact words (baseline) | 20 / 30 | 26 / 30 | 0.748 |
+| BM25, light suffix stripper (tried, not kept) | 21 / 30 | 26 / 30 | 0.778 |
+| **BM25 on Porter2 stems** (current) | **22 / 30** | **29 / 30** | **0.833** |
+
+Stemming fixed the word-form misses ("modify"/"modified", "returning"/"return", "clone"/"cloning"). The
+one miss left, "What does abstraction mean when writing functions?", is a ranking problem: "functions" and
+"abstraction" appear on many slides, so the definition slide falls outside the top 5. The questions were
+written by the same author who chose the fix, so treat these as an upper bound, not a final score, until
+Neo's own-course questions are added. Embeddings were not tried: at 29 / 30 there is
+little left to win on this set, and they add a model call or a large dependency.
+
 ### Full pipeline
 Offline mode only quotes slides, so it proves the pipeline runs and nothing about quality. Its 100%
 grounding is guaranteed by construction, and its 10% coverage is not a model score. Live numbers:
@@ -49,6 +66,8 @@ grounding is guaranteed by construction, and its 10% coverage is not a model sco
 ## Reproduce
 ```bash
 python -m evals.run                         # free, downloads the decks
+python -m evals.retrieval                   # free, retrieval recall@5
+python -m evals.retrieval --decks data/cs101 --questions my_qs.toml   # your own course; reports stay local
 python -m evals.run --live --max-usd 1      # costs money, run by Neo
 ```
 Or run the **Eval** workflow from the repo's Actions tab, after adding the `ANTHROPIC_API_KEY` secret for
