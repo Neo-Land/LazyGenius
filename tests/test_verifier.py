@@ -133,3 +133,33 @@ def test_judge_also_reviews_visual_contents():
 def test_citing_a_blank_slide_fails():
     deck = _deck("", "Real text")
     assert check_claim(Claim(text="A claim with no facts.", slides=[1]), deck)[0].check == "citation"
+
+
+# Phase 1 review cases (docs/BUILD_PLAN.md). No judge: the deterministic layers alone should catch them.
+# xfail(strict=True) keeps CI green until the fix lands, then forces removing the marker.
+REVIEW_DECK = _deck(
+    "Merge sort: worst case O(n log n). Uses 2 recursive calls. Lecture 3",
+    "Quicksort worst case O(n^2) when pivot is bad",
+    "Binary search requires a sorted list",
+)
+
+
+def _known_miss(claim, slide, why, name):
+    return pytest.param(claim, slide, marks=pytest.mark.xfail(strict=True, reason=why), id=name)
+
+
+@pytest.mark.parametrize(
+    "claim, slide",
+    [
+        _known_miss("Merge sort's worst case is O(n^2).", 1, "2 matches '2 recursive calls'", "exponent"),
+        _known_miss("Merge sort makes 3 recursive calls.", 1, "3 matches 'Lecture 3'", "lecture-number"),
+        _known_miss("Quicksort's worst case is O(n log n).", 1, "names unchecked", "swapped-name"),
+        _known_miss("Binary search does not require a sorted list.", 3, "negation ignored", "negation"),
+    ],
+)
+def test_review_cases_are_caught(claim, slide):
+    assert check_claim(Claim(text=claim, slides=[slide]), REVIEW_DECK)
+
+
+def test_review_control_claim_passes():
+    assert check_claim(Claim(text="Merge sort's worst case is O(n log n).", slides=[1]), REVIEW_DECK) == []
